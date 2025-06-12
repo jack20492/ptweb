@@ -127,17 +127,23 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const fetchAllData = async () => {
     setLoading(true)
-    await Promise.all([
-      fetchWorkoutPlans(),
-      fetchMealPlans(),
-      fetchWeightRecords(),
-      fetchTestimonials(),
-      fetchVideos(),
-      fetchContactInfo(),
-      fetchHomeContent(),
-      fetchUsers()
-    ])
-    setLoading(false)
+    try {
+      // Fetch data with error handling for each request
+      await Promise.allSettled([
+        fetchWorkoutPlans(),
+        fetchMealPlans(),
+        fetchWeightRecords(),
+        fetchTestimonials(),
+        fetchVideos(),
+        fetchContactInfo(),
+        fetchHomeContent(),
+        fetchUsers()
+      ])
+    } catch (error) {
+      console.error('Error fetching data:', error)
+    } finally {
+      setLoading(false)
+    }
   }
 
   // Workout Plans
@@ -157,7 +163,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         `)
         .order('created_at', { ascending: false })
 
-      if (error) throw error
+      if (error) {
+        console.error('Error fetching workout plans:', error)
+        return
+      }
       
       // Transform data to match frontend structure
       const transformedPlans = data?.map(plan => ({
@@ -406,7 +415,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         `)
         .order('created_at', { ascending: false })
 
-      if (error) throw error
+      if (error) {
+        console.error('Error fetching meal plans:', error)
+        return
+      }
       
       const transformedPlans = data?.map(plan => ({
         ...plan,
@@ -545,7 +557,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const { error } = await supabase
         .from('meal_plans')
         .delete()
-        .eq('planId', planId)
+        .eq('id', planId)
 
       if (error) throw error
       await fetchMealPlans()
@@ -563,7 +575,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         .select('*')
         .order('date', { ascending: false })
 
-      if (error) throw error
+      if (error) {
+        console.error('Error fetching weight records:', error)
+        return
+      }
       setWeightRecords(data || [])
     } catch (error) {
       console.error('Error fetching weight records:', error)
@@ -592,7 +607,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         .select('*')
         .order('created_at', { ascending: false })
 
-      if (error) throw error
+      if (error) {
+        console.error('Error fetching testimonials:', error)
+        return
+      }
       setTestimonials(data || [])
     } catch (error) {
       console.error('Error fetching testimonials:', error)
@@ -651,7 +669,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         .select('*')
         .order('created_at', { ascending: false })
 
-      if (error) throw error
+      if (error) {
+        console.error('Error fetching videos:', error)
+        return
+      }
       setVideos(data || [])
     } catch (error) {
       console.error('Error fetching videos:', error)
@@ -709,9 +730,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         .from('contact_info')
         .select('*')
         .limit(1)
-        .single()
+        .maybeSingle()
 
-      if (error && error.code !== 'PGRST116') throw error
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error fetching contact info:', error)
+        return
+      }
       setContactInfo(data || defaultContactInfo)
     } catch (error) {
       console.error('Error fetching contact info:', error)
@@ -740,9 +764,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         .from('home_content')
         .select('*')
         .limit(1)
-        .single()
+        .maybeSingle()
 
-      if (error && error.code !== 'PGRST116') throw error
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error fetching home content:', error)
+        return
+      }
       setHomeContent(data || defaultHomeContent)
     } catch (error) {
       console.error('Error fetching home content:', error)
@@ -772,7 +799,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         .select('*')
         .order('created_at', { ascending: false })
 
-      if (error) throw error
+      if (error) {
+        console.error('Error fetching users:', error)
+        return
+      }
       setUsers(data || [])
     } catch (error) {
       console.error('Error fetching users:', error)

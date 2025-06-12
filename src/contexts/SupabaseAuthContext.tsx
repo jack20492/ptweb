@@ -57,12 +57,24 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         .from('users')
         .select('*')
         .eq('id', userId)
-        .single()
+        .maybeSingle()
 
-      if (error) throw error
-      setUser(data)
+      if (error) {
+        console.error('Error fetching user profile:', error)
+        // If user doesn't exist in users table, sign out
+        await supabase.auth.signOut()
+        setUser(null)
+      } else if (data) {
+        setUser(data)
+      } else {
+        // User not found in users table
+        await supabase.auth.signOut()
+        setUser(null)
+      }
     } catch (error) {
       console.error('Error fetching user profile:', error)
+      await supabase.auth.signOut()
+      setUser(null)
     } finally {
       setLoading(false)
     }

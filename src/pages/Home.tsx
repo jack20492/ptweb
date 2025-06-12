@@ -35,6 +35,7 @@ const Home: React.FC = () => {
         <div className="text-center">
           <Loader2 className="h-12 w-12 animate-spin text-fitness-red mx-auto mb-4" />
           <p className="text-gray-600 text-lg">Đang tải dữ liệu...</p>
+          <p className="text-gray-500 text-sm mt-2">Vui lòng đợi trong giây lát...</p>
         </div>
       </div>
     );
