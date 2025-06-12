@@ -29,9 +29,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Initialize admin user on app start
-    initializeAdminUser()
-    
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
@@ -53,59 +50,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     return () => subscription.unsubscribe()
   }, [])
-
-  const initializeAdminUser = async () => {
-    try {
-      // Check if admin user exists
-      const { data: existingUser, error: checkError } = await supabase
-        .from('users')
-        .select('id')
-        .eq('email', 'admin@phinpt.com')
-        .maybeSingle()
-
-      if (checkError) {
-        console.error('Error checking for admin user:', checkError)
-        return
-      }
-
-      if (!existingUser) {
-        // Create admin user through Supabase Auth with metadata
-        const { data: authData, error: authError } = await supabase.auth.signUp({
-          email: 'admin@phinpt.com',
-          password: 'admin123',
-          options: {
-            data: {
-              username: 'admin',
-              full_name: 'Phi Nguyễn PT',
-              role: 'admin',
-              phone: '0123456789'
-            }
-          }
-        })
-
-        if (authError) {
-          console.error('Error creating admin user:', authError)
-          return
-        }
-
-        if (authData.user) {
-          // Call database function to setup admin user properly
-          const { error: setupError } = await supabase.rpc('setup_admin_user', {
-            user_id: authData.user.id
-          })
-
-          if (setupError) {
-            console.error('Error setting up admin user:', setupError)
-            return
-          }
-
-          console.log('Admin user created successfully')
-        }
-      }
-    } catch (error) {
-      console.error('Error initializing admin user:', error)
-    }
-  }
 
   const fetchUserProfile = async (userId: string) => {
     try {
