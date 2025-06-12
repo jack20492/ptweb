@@ -31,6 +31,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   useEffect(() => {
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
+      console.log('Initial session:', session)
       if (session?.user) {
         fetchUserProfile(session.user.id)
       } else {
@@ -40,6 +41,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('Auth state change:', event, session)
       if (session?.user) {
         await fetchUserProfile(session.user.id)
       } else {
@@ -53,12 +55,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const fetchUserProfile = async (userId: string) => {
     try {
+      console.log('Fetching user profile for:', userId)
       const { data, error } = await supabase
         .from('users')
         .select('*')
         .eq('id', userId)
         .single()
 
+      console.log('User profile data:', data, 'Error:', error)
       if (error) throw error
       setUser(data)
     } catch (error) {
@@ -70,25 +74,47 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const login = async (username: string, password: string): Promise<boolean> => {
     try {
-      // First, try to find the user by username or email
-      const { data: userData, error: userError } = await supabase
-        .from('users')
-        .select('email')
-        .or(`username.eq.${username},email.eq.${username}`)
-        .maybeSingle() // Use maybeSingle() instead of single() to handle no results gracefully
+      console.log('Attempting login with:', username)
+      
+      // Try to sign in directly with email first
+      let email = username
+      
+      // If username doesn't contain @, try to find the email from users table
+      if (!username.includes('@')) {
+        console.log('Username provided, looking up email...')
+        const { data: userData, error: userError } = await supabase
+          .from('users')
+          .select('email')
+          .eq('username', username)
+          .maybeSingle()
 
-      // If no user found, return false
-      if (userError || !userData) {
-        return false
+        console.log('User lookup result:', userData, 'Error:', userError)
+        
+        if (userData?.email) {
+          email = userData.email
+          console.log('Found email:', email)
+        } else {
+          console.log('No user found with username:', username)
+          return false
+        }
       }
 
+      console.log('Attempting auth with email:', email, 'password:', password)
+      
       // Sign in with email and password
-      const { error } = await supabase.auth.signInWithPassword({
-        email: userData.email,
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email,
         password: password
       })
 
-      return !error
+      console.log('Auth result:', data, 'Error:', error)
+
+      if (error) {
+        console.error('Auth error:', error.message)
+        return false
+      }
+
+      return true
     } catch (error) {
       console.error('Login error:', error)
       return false
