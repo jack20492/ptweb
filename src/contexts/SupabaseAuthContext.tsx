@@ -56,12 +56,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const initializeAdminUser = async () => {
     try {
-      // Check if admin user exists
-      const { data: existingUser } = await supabase
+      // Check if admin user exists - use maybeSingle() instead of single()
+      const { data: existingUser, error: checkError } = await supabase
         .from('users')
         .select('id')
         .eq('email', 'admin@phinpt.com')
-        .single()
+        .maybeSingle()
+
+      if (checkError) {
+        console.error('Error checking for admin user:', checkError)
+        return
+      }
 
       if (!existingUser) {
         // Create admin user through Supabase Auth
@@ -83,8 +88,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
 
         if (authData.user) {
-          // Call the setup function to ensure proper user data
-          await supabase.rpc('setup_admin_user', { user_id: authData.user.id })
+          // Insert user data directly into users table instead of using RPC
+          const { error: insertError } = await supabase
+            .from('users')
+            .insert({
+              id: authData.user.id,
+              username: 'admin',
+              email: 'admin@phinpt.com',
+              password_hash: '', // This will be handled by Supabase Auth
+              full_name: 'Phi Nguyễn PT',
+              role: 'admin'
+            })
+
+          if (insertError) {
+            console.error('Error inserting admin user data:', insertError)
+          }
         }
       }
     } catch (error) {
@@ -119,7 +137,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           .from('users')
           .select('email')
           .eq('username', username)
-          .single()
+          .maybeSingle()
 
         if (userError || !userData?.email) {
           return false
