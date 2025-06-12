@@ -10,30 +10,15 @@ import {
   Filter,
   X,
 } from "lucide-react";
+import { useData } from "../../contexts/SupabaseDataContext";
 import ImageUpload from "../ImageUpload";
 
-interface User {
-  id: string;
-  username: string;
-  email: string;
-  fullName: string;
-  phone?: string;
-  role: "admin" | "client";
-  avatar?: string;
-  startDate?: string;
-}
-
 const UserManagement: React.FC = () => {
-  const [users, setUsers] = useState<User[]>(() => {
-    const savedUsers = JSON.parse(localStorage.getItem("pt_users") || "[]");
-    return savedUsers.map((u: any) => ({ ...u, password: undefined }));
-  });
+  const { users, addUser, updateUser, deleteUser } = useData();
   const [showForm, setShowForm] = useState(false);
-  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [editingUser, setEditingUser] = useState<any>(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [filterRole, setFilterRole] = useState<"all" | "admin" | "client">(
-    "all"
-  );
+  const [filterRole, setFilterRole] = useState<"all" | "admin" | "client">("all");
   const [formData, setFormData] = useState({
     username: "",
     email: "",
@@ -44,58 +29,40 @@ const UserManagement: React.FC = () => {
     avatar: "",
   });
 
-  // Xoá xác nhận popup state
+  // Delete confirmation popup state
   const [showDeletePopup, setShowDeletePopup] = useState(false);
-  const [userToDelete, setUserToDelete] = useState<User | null>(null);
+  const [userToDelete, setUserToDelete] = useState<any>(null);
 
   const filteredUsers = users.filter((user) => {
     const matchesSearch =
-      user.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
       user.username.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesRole = filterRole === "all" || user.role === filterRole;
     return matchesSearch && matchesRole;
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    const allUsers = JSON.parse(localStorage.getItem("pt_users") || "[]");
-
-    if (editingUser) {
-      // Update user
-      const updatedUsers = allUsers.map((u: any) =>
-        u.id === editingUser.id
-          ? {
-              ...u,
-              ...formData,
-              password: formData.password || u.password,
-            }
-          : u
-      );
-      localStorage.setItem("pt_users", JSON.stringify(updatedUsers));
-      setUsers(updatedUsers.map((u: any) => ({ ...u, password: undefined })));
-    } else {
-      // Add new user
-      const newUser = {
-        id: `user-${Date.now()}`,
-        ...formData,
-        startDate: new Date().toISOString().split("T")[0],
-      };
-      const updatedUsers = [...allUsers, newUser];
-      localStorage.setItem("pt_users", JSON.stringify(updatedUsers));
-      setUsers(updatedUsers.map((u: any) => ({ ...u, password: undefined })));
+    try {
+      if (editingUser) {
+        await updateUser(editingUser.id, formData);
+      } else {
+        await addUser(formData);
+      }
+      resetForm();
+    } catch (error) {
+      console.error('Error saving user:', error);
+      alert('Có lỗi xảy ra khi lưu người dùng');
     }
-
-    resetForm();
   };
 
-  const handleEdit = (user: User) => {
+  const handleEdit = (user: any) => {
     setEditingUser(user);
     setFormData({
       username: user.username,
       email: user.email,
-      fullName: user.fullName,
+      fullName: user.full_name,
       phone: user.phone || "",
       role: user.role,
       password: "",
@@ -104,21 +71,21 @@ const UserManagement: React.FC = () => {
     setShowForm(true);
   };
 
-  // Mở popup xác nhận xoá
-  const handleDeleteClick = (user: User) => {
+  const handleDeleteClick = (user: any) => {
     setUserToDelete(user);
     setShowDeletePopup(true);
   };
 
-  // Xác nhận xoá
-  const handleConfirmDelete = () => {
+  const handleConfirmDelete = async () => {
     if (!userToDelete) return;
-    const allUsers = JSON.parse(localStorage.getItem("pt_users") || "[]");
-    const updatedUsers = allUsers.filter((u: any) => u.id !== userToDelete.id);
-    localStorage.setItem("pt_users", JSON.stringify(updatedUsers));
-    setUsers(updatedUsers.map((u: any) => ({ ...u, password: undefined })));
-    setShowDeletePopup(false);
-    setUserToDelete(null);
+    try {
+      await deleteUser(userToDelete.id);
+      setShowDeletePopup(false);
+      setUserToDelete(null);
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      alert('Có lỗi xảy ra khi xóa người dùng');
+    }
   };
 
   const handleCancelDelete = () => {
@@ -203,7 +170,7 @@ const UserManagement: React.FC = () => {
                   {user.avatar ? (
                     <img
                       src={user.avatar}
-                      alt={user.fullName}
+                      alt={user.full_name}
                       className="w-16 h-16 rounded-full object-cover border-4 border-gray-100"
                     />
                   ) : (
@@ -213,7 +180,7 @@ const UserManagement: React.FC = () => {
                   )}
                   <div>
                     <h3 className="text-xl font-bold text-fitness-black">
-                      {user.fullName}
+                      {user.full_name}
                     </h3>
                     <p className="text-gray-500 text-sm">@{user.username}</p>
                     <div className="flex items-center space-x-4 mt-2">
@@ -432,7 +399,7 @@ const UserManagement: React.FC = () => {
               </h3>
               <p className="text-gray-600 mb-6">
                 Bạn có chắc chắn muốn xóa{" "}
-                <span className="font-semibold">{userToDelete.fullName}</span>?
+                <span className="font-semibold">{userToDelete.full_name}</span>?
                 Hành động này không thể hoàn tác.
               </p>
               <div className="flex w-full gap-4">

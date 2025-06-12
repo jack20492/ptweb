@@ -1,22 +1,30 @@
 import React, { useState } from 'react';
-import { useData } from '../../contexts/DataContext';
+import { useData } from '../../contexts/SupabaseDataContext';
 import { Save, Phone, Facebook, MessageCircle, Mail } from 'lucide-react';
 
 const Settings: React.FC = () => {
   const { contactInfo, updateContactInfo } = useData();
-  const [formData, setFormData] = useState(contactInfo);
+  const [formData, setFormData] = useState(contactInfo || {
+    phone: '',
+    facebook: '',
+    zalo: '',
+    email: ''
+  });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
     
-    updateContactInfo(formData);
-    
-    setTimeout(() => {
-      setIsSubmitting(false);
+    try {
+      await updateContactInfo(formData);
       alert('Thông tin liên hệ đã được cập nhật thành công!');
-    }, 500);
+    } catch (error) {
+      console.error('Error updating contact info:', error);
+      alert('Có lỗi xảy ra khi cập nhật thông tin liên hệ');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (

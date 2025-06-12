@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useData } from '../../contexts/DataContext';
+import { useData } from '../../contexts/SupabaseDataContext';
 import { Plus, Edit, Trash2, Star, User, Search, X } from 'lucide-react';
 import ImageUpload from '../ImageUpload';
 
@@ -13,8 +13,8 @@ const TestimonialManagement: React.FC = () => {
     content: '',
     rating: 5,
     avatar: '',
-    beforeImage: '',
-    afterImage: ''
+    before_image: '',
+    after_image: ''
   });
 
   const filteredTestimonials = testimonials.filter(testimonial =>
@@ -22,21 +22,20 @@ const TestimonialManagement: React.FC = () => {
     testimonial.content.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    const testimonialData = {
-      id: editingTestimonial?.id || `testimonial-${Date.now()}`,
-      ...formData
-    };
-
-    if (editingTestimonial) {
-      updateTestimonial(editingTestimonial.id, testimonialData);
-    } else {
-      addTestimonial(testimonialData);
+    try {
+      if (editingTestimonial) {
+        await updateTestimonial(editingTestimonial.id, formData);
+      } else {
+        await addTestimonial(formData);
+      }
+      resetForm();
+    } catch (error) {
+      console.error('Error saving testimonial:', error);
+      alert('Có lỗi xảy ra khi lưu phản hồi');
     }
-
-    resetForm();
   };
 
   const resetForm = () => {
@@ -45,8 +44,8 @@ const TestimonialManagement: React.FC = () => {
       content: '',
       rating: 5,
       avatar: '',
-      beforeImage: '',
-      afterImage: ''
+      before_image: '',
+      after_image: ''
     });
     setEditingTestimonial(null);
     setShowForm(false);
@@ -59,15 +58,19 @@ const TestimonialManagement: React.FC = () => {
       content: testimonial.content,
       rating: testimonial.rating,
       avatar: testimonial.avatar || '',
-      beforeImage: testimonial.beforeImage || '',
-      afterImage: testimonial.afterImage || ''
+      before_image: testimonial.before_image || '',
+      after_image: testimonial.after_image || ''
     });
     setShowForm(true);
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (confirm('Bạn có chắc muốn xóa phản hồi này?')) {
-      deleteTestimonial(id);
+      try {
+        await deleteTestimonial(id);
+      } catch (error) {
+        console.error('Error deleting testimonial:', error);
+      }
     }
   };
 
@@ -149,23 +152,23 @@ const TestimonialManagement: React.FC = () => {
                 <p className="text-gray-700 italic text-lg leading-relaxed">"{testimonial.content}"</p>
               </div>
               
-              {(testimonial.beforeImage || testimonial.afterImage) && (
+              {(testimonial.before_image || testimonial.after_image) && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {testimonial.beforeImage && (
+                  {testimonial.before_image && (
                     <div>
                       <p className="text-sm font-medium text-gray-700 mb-3">📸 Ảnh trước</p>
                       <img
-                        src={testimonial.beforeImage}
+                        src={testimonial.before_image}
                         alt="Before"
                         className="w-full h-48 object-cover rounded-lg border-2 border-gray-200"
                       />
                     </div>
                   )}
-                  {testimonial.afterImage && (
+                  {testimonial.after_image && (
                     <div>
                       <p className="text-sm font-medium text-gray-700 mb-3">✨ Ảnh sau</p>
                       <img
-                        src={testimonial.afterImage}
+                        src={testimonial.after_image}
                         alt="After"
                         className="w-full h-48 object-cover rounded-lg border-2 border-gray-200"
                       />
@@ -258,14 +261,14 @@ const TestimonialManagement: React.FC = () => {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <ImageUpload
-                    value={formData.beforeImage}
-                    onChange={(url) => setFormData({ ...formData, beforeImage: url })}
+                    value={formData.before_image}
+                    onChange={(url) => setFormData({ ...formData, before_image: url })}
                     label="Ảnh trước (tùy chọn)"
                   />
 
                   <ImageUpload
-                    value={formData.afterImage}
-                    onChange={(url) => setFormData({ ...formData, afterImage: url })}
+                    value={formData.after_image}
+                    onChange={(url) => setFormData({ ...formData, after_image: url })}
                     label="Ảnh sau (tùy chọn)"
                   />
                 </div>

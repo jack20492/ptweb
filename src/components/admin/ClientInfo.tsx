@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useData } from "../../contexts/DataContext";
+import { useData } from "../../contexts/SupabaseDataContext";
 import {
   User,
   Dumbbell,
@@ -18,6 +18,7 @@ const ClientInfo: React.FC = () => {
     workoutPlans,
     mealPlans,
     weightRecords,
+    users,
     deleteWorkoutPlan,
     deleteMealPlan,
   } = useData();
@@ -27,30 +28,26 @@ const ClientInfo: React.FC = () => {
   const [showMealDetailModal, setShowMealDetailModal] = useState(false);
   const [mealDetail, setMealDetail] = useState<any>(null);
 
-  // Popup xác nhận xóa workout plan
+  // Delete confirmation popups
   const [showDeleteWorkoutPopup, setShowDeleteWorkoutPopup] = useState(false);
   const [workoutPlanToDelete, setWorkoutPlanToDelete] = useState<any>(null);
-
-  // Popup xác nhận xóa meal plan
   const [showDeleteMealPopup, setShowDeleteMealPopup] = useState(false);
   const [mealPlanToDelete, setMealPlanToDelete] = useState<any>(null);
 
-  const clients = JSON.parse(localStorage.getItem("pt_users") || "[]").filter(
-    (u: any) => u.role === "client"
-  );
+  const clients = users.filter((u: any) => u.role === "client");
 
   const filteredClients = clients.filter(
     (client: any) =>
-      client.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      client.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       client.email.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const getClientWorkoutPlans = (clientId: string) => {
-    return workoutPlans.filter((plan) => plan.clientId === clientId);
+    return workoutPlans.filter((plan) => plan.client_id === clientId);
   };
 
   const getClientMealPlans = (clientId: string) => {
-    return mealPlans.filter((plan) => plan.clientId === clientId);
+    return mealPlans.filter((plan) => plan.client_id === clientId);
   };
 
   const openPlanDetail = (plan: any) => {
@@ -61,6 +58,26 @@ const ClientInfo: React.FC = () => {
   const openMealDetail = (plan: any) => {
     setMealDetail(plan);
     setShowMealDetailModal(true);
+  };
+
+  const handleDeleteWorkout = async (plan: any) => {
+    try {
+      await deleteWorkoutPlan(plan.id);
+      setShowDeleteWorkoutPopup(false);
+      setWorkoutPlanToDelete(null);
+    } catch (error) {
+      console.error('Error deleting workout plan:', error);
+    }
+  };
+
+  const handleDeleteMeal = async (plan: any) => {
+    try {
+      await deleteMealPlan(plan.id);
+      setShowDeleteMealPopup(false);
+      setMealPlanToDelete(null);
+    } catch (error) {
+      console.error('Error deleting meal plan:', error);
+    }
   };
 
   return (
@@ -93,9 +110,8 @@ const ClientInfo: React.FC = () => {
         {filteredClients.map((client: any) => {
           const clientWorkouts = getClientWorkoutPlans(client.id);
           const clientMeals = getClientMealPlans(client.id);
-          // --- Weight chart data for this client ---
           const clientWeights = weightRecords
-            .filter((r) => r.clientId === client.id)
+            .filter((r) => r.client_id === client.id)
             .sort(
               (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
             );
@@ -119,7 +135,7 @@ const ClientInfo: React.FC = () => {
                     {client.avatar ? (
                       <img
                         src={client.avatar}
-                        alt={client.fullName}
+                        alt={client.full_name}
                         className="w-12 h-12 sm:w-16 sm:h-16 rounded-full object-cover border-4 border-gray-100"
                       />
                     ) : (
@@ -129,7 +145,7 @@ const ClientInfo: React.FC = () => {
                     )}
                     <div>
                       <h3 className="text-lg sm:text-xl font-bold text-fitness-black">
-                        {client.fullName}
+                        {client.full_name}
                       </h3>
                       <p className="text-sm text-gray-500">
                         @{client.username}
@@ -282,7 +298,7 @@ const ClientInfo: React.FC = () => {
                           <div className="space-y-2 text-xs sm:text-sm text-blue-800">
                             <div className="flex items-center space-x-2">
                               <Calendar className="h-4 w-4" />
-                              <span>Tuần {plan.weekNumber}</span>
+                              <span>Tuần {plan.week_number}</span>
                             </div>
                             <div className="flex items-center space-x-2">
                               <Target className="h-4 w-4" />
@@ -293,7 +309,7 @@ const ClientInfo: React.FC = () => {
                             </div>
                             <div className="text-xs text-blue-600">
                               Bắt đầu:{" "}
-                              {new Date(plan.startDate).toLocaleDateString(
+                              {new Date(plan.start_date).toLocaleDateString(
                                 "vi-VN"
                               )}
                             </div>
@@ -344,7 +360,7 @@ const ClientInfo: React.FC = () => {
                             <div className="flex items-center justify-between">
                               <span>{plan.meals.length} bữa ăn</span>
                               <span className="bg-green-600 text-white px-2 py-1 rounded-full text-xs font-medium">
-                                {plan.totalCalories} kcal
+                                {plan.total_calories} kcal
                               </span>
                             </div>
                             {plan.notes && (
@@ -380,7 +396,7 @@ const ClientInfo: React.FC = () => {
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto p-8">
             <div className="flex items-center justify-between mb-4 border-b pb-2">
               <h3 className="text-xl font-bold text-fitness-black">
-                {planDetail.name} (Tuần {planDetail.weekNumber})
+                {planDetail.name} (Tuần {planDetail.week_number})
               </h3>
               <button
                 onClick={() => setShowPlanDetailModal(false)}
@@ -453,7 +469,7 @@ const ClientInfo: React.FC = () => {
             <div className="flex items-center justify-between mb-4 border-b pb-2">
               <h3 className="text-xl font-bold text-fitness-black">
                 {mealDetail.name} ({mealDetail.meals.length} bữa ăn) -{" "}
-                {mealDetail.totalCalories} kcal
+                {mealDetail.total_calories} kcal
               </h3>
               <button
                 onClick={() => setShowMealDetailModal(false)}
@@ -553,11 +569,7 @@ const ClientInfo: React.FC = () => {
                   Hủy
                 </button>
                 <button
-                  onClick={() => {
-                    deleteWorkoutPlan(workoutPlanToDelete.id);
-                    setShowDeleteWorkoutPopup(false);
-                    setWorkoutPlanToDelete(null);
-                  }}
+                  onClick={() => handleDeleteWorkout(workoutPlanToDelete)}
                   className="flex-1 px-4 py-2 rounded-lg bg-gradient-to-r from-fitness-red to-red-600 text-white font-medium hover:from-red-600 hover:to-red-700 transition-all duration-200"
                 >
                   Xóa
@@ -596,11 +608,7 @@ const ClientInfo: React.FC = () => {
                   Hủy
                 </button>
                 <button
-                  onClick={() => {
-                    deleteMealPlan(mealPlanToDelete.id);
-                    setShowDeleteMealPopup(false);
-                    setMealPlanToDelete(null);
-                  }}
+                  onClick={() => handleDeleteMeal(mealPlanToDelete)}
                   className="flex-1 px-4 py-2 rounded-lg bg-gradient-to-r from-fitness-red to-red-600 text-white font-medium hover:from-red-600 hover:to-red-700 transition-all duration-200"
                 >
                   Xóa

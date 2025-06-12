@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useData } from '../../contexts/DataContext';
+import { useData } from '../../contexts/SupabaseDataContext';
 import { Plus, Edit, Trash2, Play, X } from 'lucide-react';
 
 const VideoManagement: React.FC = () => {
@@ -8,7 +8,7 @@ const VideoManagement: React.FC = () => {
   const [editingVideo, setEditingVideo] = useState<any>(null);
   const [formData, setFormData] = useState({
     title: '',
-    youtubeId: '',
+    youtube_id: '',
     description: '',
     category: 'Cardio'
   });
@@ -19,28 +19,31 @@ const VideoManagement: React.FC = () => {
     return (match && match[7].length === 11) ? match[7] : url;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    const videoData = {
-      id: editingVideo?.id || `video-${Date.now()}`,
-      ...formData,
-      youtubeId: extractYouTubeId(formData.youtubeId)
-    };
+    try {
+      const videoData = {
+        ...formData,
+        youtube_id: extractYouTubeId(formData.youtube_id)
+      };
 
-    if (editingVideo) {
-      updateVideo(editingVideo.id, videoData);
-    } else {
-      addVideo(videoData);
+      if (editingVideo) {
+        await updateVideo(editingVideo.id, videoData);
+      } else {
+        await addVideo(videoData);
+      }
+      resetForm();
+    } catch (error) {
+      console.error('Error saving video:', error);
+      alert('Có lỗi xảy ra khi lưu video');
     }
-
-    resetForm();
   };
 
   const resetForm = () => {
     setFormData({
       title: '',
-      youtubeId: '',
+      youtube_id: '',
       description: '',
       category: 'Cardio'
     });
@@ -52,16 +55,20 @@ const VideoManagement: React.FC = () => {
     setEditingVideo(video);
     setFormData({
       title: video.title,
-      youtubeId: video.youtubeId,
+      youtube_id: video.youtube_id,
       description: video.description,
       category: video.category
     });
     setShowForm(true);
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (confirm('Bạn có chắc muốn xóa video này?')) {
-      deleteVideo(id);
+      try {
+        await deleteVideo(id);
+      } catch (error) {
+        console.error('Error deleting video:', error);
+      }
     }
   };
 
@@ -89,7 +96,7 @@ const VideoManagement: React.FC = () => {
           <div key={video.id} className="bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
             <div className="relative aspect-video bg-gray-200">
               <iframe
-                src={`https://www.youtube.com/embed/${video.youtubeId}`}
+                src={`https://www.youtube.com/embed/${video.youtube_id}`}
                 title={video.title}
                 className="absolute inset-0 w-full h-full"
                 allowFullScreen
@@ -163,8 +170,8 @@ const VideoManagement: React.FC = () => {
                   </label>
                   <input
                     type="text"
-                    value={formData.youtubeId}
-                    onChange={(e) => setFormData({ ...formData, youtubeId: e.target.value })}
+                    value={formData.youtube_id}
+                    onChange={(e) => setFormData({ ...formData, youtube_id: e.target.value })}
                     className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-fitness-red focus:border-transparent transition-all duration-200"
                     placeholder="https://www.youtube.com/watch?v=dQw4w9WgXcQ hoặc dQw4w9WgXcQ"
                     required
@@ -203,14 +210,14 @@ const VideoManagement: React.FC = () => {
                 </div>
 
                 {/* Preview */}
-                {formData.youtubeId && (
+                {formData.youtube_id && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Xem trước
                     </label>
                     <div className="aspect-video bg-gray-200 rounded-lg overflow-hidden">
                       <iframe
-                        src={`https://www.youtube.com/embed/${extractYouTubeId(formData.youtubeId)}`}
+                        src={`https://www.youtube.com/embed/${extractYouTubeId(formData.youtube_id)}`}
                         title="Preview"
                         className="w-full h-full"
                         allowFullScreen

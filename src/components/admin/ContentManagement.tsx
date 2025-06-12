@@ -1,23 +1,34 @@
 import React, { useState } from 'react';
-import { useData } from '../../contexts/DataContext';
+import { useData } from '../../contexts/SupabaseDataContext';
 import { Save } from 'lucide-react';
 import ImageUpload from '../ImageUpload';
 
 const ContentManagement: React.FC = () => {
   const { homeContent, updateHomeContent } = useData();
-  const [formData, setFormData] = useState(homeContent);
+  const [formData, setFormData] = useState(homeContent || {
+    hero_title: '',
+    hero_subtitle: '',
+    hero_image: '',
+    about_text: '',
+    about_image: '',
+    services_title: '',
+    services: []
+  });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
     
-    updateHomeContent(formData);
-    
-    setTimeout(() => {
-      setIsSubmitting(false);
+    try {
+      await updateHomeContent(formData);
       alert('Nội dung đã được cập nhật thành công!');
-    }, 500);
+    } catch (error) {
+      console.error('Error updating home content:', error);
+      alert('Có lỗi xảy ra khi cập nhật nội dung');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleServiceChange = (index: number, value: string) => {
@@ -55,8 +66,8 @@ const ContentManagement: React.FC = () => {
               </label>
               <input
                 type="text"
-                value={formData.heroTitle}
-                onChange={(e) => setFormData({ ...formData, heroTitle: e.target.value })}
+                value={formData.hero_title}
+                onChange={(e) => setFormData({ ...formData, hero_title: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-fitness-red focus:border-transparent text-sm sm:text-base"
                 required
               />
@@ -66,16 +77,16 @@ const ContentManagement: React.FC = () => {
                 Phụ đề
               </label>
               <textarea
-                value={formData.heroSubtitle}
-                onChange={(e) => setFormData({ ...formData, heroSubtitle: e.target.value })}
+                value={formData.hero_subtitle}
+                onChange={(e) => setFormData({ ...formData, hero_subtitle: e.target.value })}
                 rows={2}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-fitness-red focus:border-transparent text-sm sm:text-base"
                 required
               />
             </div>
             <ImageUpload
-              value={formData.heroImage || ''}
-              onChange={(url) => setFormData({ ...formData, heroImage: url })}
+              value={formData.hero_image || ''}
+              onChange={(url) => setFormData({ ...formData, hero_image: url })}
               label="Ảnh hero (tùy chọn)"
             />
           </div>
@@ -90,16 +101,16 @@ const ContentManagement: React.FC = () => {
                 Nội dung giới thiệu
               </label>
               <textarea
-                value={formData.aboutText}
-                onChange={(e) => setFormData({ ...formData, aboutText: e.target.value })}
+                value={formData.about_text}
+                onChange={(e) => setFormData({ ...formData, about_text: e.target.value })}
                 rows={4}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-fitness-red focus:border-transparent text-sm sm:text-base"
                 required
               />
             </div>
             <ImageUpload
-              value={formData.aboutImage || ''}
-              onChange={(url) => setFormData({ ...formData, aboutImage: url })}
+              value={formData.about_image || ''}
+              onChange={(url) => setFormData({ ...formData, about_image: url })}
               label="Ảnh giới thiệu (tùy chọn)"
             />
           </div>
@@ -115,8 +126,8 @@ const ContentManagement: React.FC = () => {
               </label>
               <input
                 type="text"
-                value={formData.servicesTitle}
-                onChange={(e) => setFormData({ ...formData, servicesTitle: e.target.value })}
+                value={formData.services_title}
+                onChange={(e) => setFormData({ ...formData, services_title: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-fitness-red focus:border-transparent text-sm sm:text-base"
                 required
               />

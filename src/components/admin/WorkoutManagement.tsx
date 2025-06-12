@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useData } from "../../contexts/DataContext";
+import { useData } from "../../contexts/SupabaseDataContext";
 import {
   Plus,
   Edit,
@@ -15,6 +15,7 @@ import {
 const WorkoutManagement: React.FC = () => {
   const {
     workoutPlans,
+    users,
     addWorkoutPlan,
     updateWorkoutPlan,
     deleteWorkoutPlan,
@@ -44,26 +45,23 @@ const WorkoutManagement: React.FC = () => {
   const [planToDuplicate, setPlanToDuplicate] = useState<any>(null);
   const [duplicateClientId, setDuplicateClientId] = useState("");
 
-  // Popup xác nhận xóa bài tập
+  // Delete confirmation popup state
   const [showDeletePopup, setShowDeletePopup] = useState(false);
   const [planToDelete, setPlanToDelete] = useState<any>(null);
 
-  const clients = JSON.parse(localStorage.getItem("pt_users") || "[]").filter(
-    (u: any) => u.role === "client"
-  );
+  const clients = users.filter((u: any) => u.role === "client");
 
-  // Chỉ hiển thị tuần đầu tiên hoặc tuần do admin tạo cho mỗi client
+  // Only show first week or admin-created week for each client
   const getPlansForDisplay = () => {
-    // Lấy tuần đầu tiên hoặc tuần có createdBy: "admin" cho mỗi client
     const plansShown: any[] = [];
     const clientIds: string[] = [];
     workoutPlans.forEach((plan) => {
       if (
-        !clientIds.includes(plan.clientId) &&
-        (plan.weekNumber === 1 || plan.createdBy === "admin")
+        !clientIds.includes(plan.client_id) &&
+        (plan.week_number === 1 || plan.created_by === "admin")
       ) {
         plansShown.push(plan);
-        clientIds.push(plan.clientId);
+        clientIds.push(plan.client_id);
       }
     });
     return plansShown;
@@ -72,45 +70,53 @@ const WorkoutManagement: React.FC = () => {
   const plansForDisplay = getPlansForDisplay();
 
   const handleShowWeeks = (clientId: string) => {
-    // Lấy tất cả các tuần của client đó
     const plans = workoutPlans
-      .filter((p) => p.clientId === clientId)
-      .sort((a, b) => a.weekNumber - b.weekNumber);
+      .filter((p) => p.client_id === clientId)
+      .sort((a, b) => a.week_number - b.week_number);
     setWeeksClient({ clientId, plans });
     setShowWeeksModal(true);
   };
 
-  // Duplicate logic
   const handleDuplicate = (plan: any) => {
     setPlanToDuplicate(plan);
     setDuplicateClientId("");
     setShowDuplicateModal(true);
   };
-  const confirmDuplicate = () => {
+
+  const confirmDuplicate = async () => {
     if (!planToDuplicate || !duplicateClientId) return;
-    duplicateWorkoutPlan(planToDuplicate.id, duplicateClientId);
-    setShowDuplicateModal(false);
-    setPlanToDuplicate(null);
-    setDuplicateClientId("");
+    try {
+      await duplicateWorkoutPlan(planToDuplicate.id, duplicateClientId);
+      setShowDuplicateModal(false);
+      setPlanToDuplicate(null);
+      setDuplicateClientId("");
+    } catch (error) {
+      console.error('Error duplicating workout plan:', error);
+    }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const planData = {
-      id: editingPlan?.id || `plan-${Date.now()}`,
-      name: planName,
-      clientId: selectedClient,
-      weekNumber: 1,
-      startDate: new Date().toISOString().split("T")[0],
-      days,
-      createdBy: "admin",
-    };
-    if (editingPlan) {
-      updateWorkoutPlan(editingPlan.id, planData);
-    } else {
-      addWorkoutPlan(planData);
+    try {
+      const planData = {
+        name: planName,
+        clientId: selectedClient,
+        weekNumber: 1,
+        startDate: new Date().toISOString().split("T")[0],
+        days,
+        createdBy: "admin",
+      };
+      
+      if (editingPlan) {
+        await updateWorkoutPlan(editingPlan.id, planData);
+      } else {
+        await addWorkoutPlan(planData);
+      }
+      resetForm();
+    } catch (error) {
+      console.error('Error saving workout plan:', error);
+      alert('Có lỗi xảy ra khi lưu giáo án');
     }
-    resetForm();
   };
 
   const resetForm = () => {
@@ -129,7 +135,7 @@ const WorkoutManagement: React.FC = () => {
     setShowForm(false);
   };
 
-  // Các hàm cho CRUD bài tập bên trong ngày
+  // Exercise CRUD functions
   const addExercise = (dayIndex: number) => {
     const newExercise = {
       id: `exercise-${Date.now()}`,
@@ -140,6 +146,7 @@ const WorkoutManagement: React.FC = () => {
     newDays[dayIndex].exercises.push(newExercise);
     setDays(newDays);
   };
+
   const updateExercise = (
     dayIndex: number,
     exerciseIndex: number,
@@ -150,6 +157,7 @@ const WorkoutManagement: React.FC = () => {
     newDays[dayIndex].exercises[exerciseIndex][field] = value;
     setDays(newDays);
   };
+
   const addSet = (dayIndex: number, exerciseIndex: number) => {
     const newDays = [...days];
     const currentSets = newDays[dayIndex].exercises[exerciseIndex].sets;
@@ -165,6 +173,7 @@ const WorkoutManagement: React.FC = () => {
       setDays(newDays);
     }
   };
+
   const removeSet = (
     dayIndex: number,
     exerciseIndex: number,
@@ -177,6 +186,7 @@ const WorkoutManagement: React.FC = () => {
     });
     setDays(newDays);
   };
+
   const updateSet = (
     dayIndex: number,
     exerciseIndex: number,
@@ -188,11 +198,13 @@ const WorkoutManagement: React.FC = () => {
     newDays[dayIndex].exercises[exerciseIndex].sets[setIndex][field] = value;
     setDays(newDays);
   };
+
   const removeExercise = (dayIndex: number, exerciseIndex: number) => {
     const newDays = [...days];
     newDays[dayIndex].exercises.splice(exerciseIndex, 1);
     setDays(newDays);
   };
+
   const toggleRestDay = (dayIndex: number) => {
     const newDays = [...days];
     newDays[dayIndex].isRestDay = !newDays[dayIndex].isRestDay;
@@ -201,30 +213,35 @@ const WorkoutManagement: React.FC = () => {
     }
     setDays(newDays);
   };
+
   const handleEdit = (plan: any) => {
     setEditingPlan(plan);
-    setSelectedClient(plan.clientId);
+    setSelectedClient(plan.client_id);
     setPlanName(plan.name);
     setDays(plan.days);
     setShowForm(true);
   };
+
   const getClientName = (clientId: string) => {
     const client = clients.find((c: any) => c.id === clientId);
-    return client?.fullName || "Không tìm thấy";
+    return client?.full_name || "Không tìm thấy";
   };
 
-  // Popup xác nhận xóa bài tập
   const openDeletePopup = (plan: any) => {
     setPlanToDelete(plan);
     setShowDeletePopup(true);
   };
 
-  const handleConfirmDelete = () => {
+  const handleConfirmDelete = async () => {
     if (planToDelete) {
-      deleteWorkoutPlan(planToDelete.id);
+      try {
+        await deleteWorkoutPlan(planToDelete.id);
+        setShowDeletePopup(false);
+        setPlanToDelete(null);
+      } catch (error) {
+        console.error('Error deleting workout plan:', error);
+      }
     }
-    setShowDeletePopup(false);
-    setPlanToDelete(null);
   };
 
   const handleCancelDelete = () => {
@@ -268,11 +285,11 @@ const WorkoutManagement: React.FC = () => {
                   <div className="flex items-center space-x-4 text-sm text-gray-600 mt-2">
                     <span className="flex items-center space-x-1">
                       <User className="h-4 w-4" />
-                      <span>{getClientName(plan.clientId)}</span>
+                      <span>{getClientName(plan.client_id)}</span>
                     </span>
                     <span className="flex items-center space-x-1">
                       <Calendar className="h-4 w-4" />
-                      <span>Tuần {plan.weekNumber}</span>
+                      <span>Tuần {plan.week_number}</span>
                     </span>
                     <span className="flex items-center space-x-1">
                       <Dumbbell className="h-4 w-4" />
@@ -296,7 +313,7 @@ const WorkoutManagement: React.FC = () => {
                     <Trash2 className="h-5 w-5" />
                   </button>
                   <button
-                    onClick={() => handleShowWeeks(plan.clientId)}
+                    onClick={() => handleShowWeeks(plan.client_id)}
                     className="p-3 text-green-600 hover:bg-green-50 rounded-xl transition-all duration-200 hover:scale-110"
                   >
                     <List className="h-5 w-5" />
@@ -368,7 +385,7 @@ const WorkoutManagement: React.FC = () => {
         </div>
       )}
 
-      {/* Weeks Modal (Xem các tuần của 1 khách hàng) */}
+      {/* Weeks Modal */}
       {showWeeksModal && weeksClient && (
         <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto p-8">
@@ -389,11 +406,11 @@ const WorkoutManagement: React.FC = () => {
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between">
                     <div>
                       <div className="font-semibold text-fitness-black">
-                        {plan.name} (Tuần {plan.weekNumber})
+                        {plan.name} (Tuần {plan.week_number})
                       </div>
                       <div className="text-gray-600 text-sm">
                         Ngày bắt đầu:{" "}
-                        {new Date(plan.startDate).toLocaleDateString("vi-VN")}
+                        {new Date(plan.start_date).toLocaleDateString("vi-VN")}
                       </div>
                     </div>
                     <div className="flex flex-wrap gap-2 mt-2 sm:mt-0">
@@ -404,13 +421,12 @@ const WorkoutManagement: React.FC = () => {
                         {plan.days.filter((d) => d.isRestDay).length} ngày nghỉ
                       </span>
                       <span className="bg-gray-200 text-gray-700 px-3 py-1 rounded-full text-xs">
-                        {plan.createdBy === "admin"
+                        {plan.created_by === "admin"
                           ? "Tạo bởi admin"
                           : "Tạo bởi client"}
                       </span>
                     </div>
                   </div>
-                  {/* Có thể bổ sung nút xem chi tiết bài tập từng tuần ở đây nếu cần */}
                 </div>
               ))}
             </div>
@@ -445,14 +461,14 @@ const WorkoutManagement: React.FC = () => {
                 <option value="">-- Chọn học viên --</option>
                 {clients.map((client: any) => (
                   <option key={client.id} value={client.id}>
-                    {client.fullName}
+                    {client.full_name}
                   </option>
                 ))}
               </select>
               <button
                 onClick={confirmDuplicate}
                 disabled={!duplicateClientId}
-                className="w-full px-6 py-3 bg-gradient-to-r from-fitness-red to-red-600 text-white rounded-lg hover:from-red-600 hover:to-red-700 transition-all duration-200 font-medium"
+                className="w-full px-6 py-3 bg-gradient-to-r from-fitness-red to-red-600 text-white rounded-lg hover:from-red-600 hover:to-red-700 transition-all duration-200 font-medium disabled:opacity-50"
               >
                 Xác nhận Duplicate
               </button>
@@ -507,7 +523,7 @@ const WorkoutManagement: React.FC = () => {
                       <option value="">Chọn học viên</option>
                       {clients.map((client: any) => (
                         <option key={client.id} value={client.id}>
-                          {client.fullName}
+                          {client.full_name}
                         </option>
                       ))}
                     </select>

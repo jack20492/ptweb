@@ -1,6 +1,6 @@
 import React, { useState } from "react";
-import { useAuth } from "../contexts/AuthContext";
-import { useData } from "../contexts/DataContext";
+import { useAuth } from "../contexts/SupabaseAuthContext";
+import { useData } from "../contexts/SupabaseDataContext";
 import {
   Dumbbell,
   Calendar,
@@ -34,43 +34,46 @@ const ClientDashboard: React.FC = () => {
   const [weightNotes, setWeightNotes] = useState("");
 
   const userWorkoutPlans = workoutPlans.filter(
-    (plan) => plan.clientId === user?.id
+    (plan) => plan.client_id === user?.id
   );
   const sortedWorkoutPlans = userWorkoutPlans.sort(
-    (a, b) => b.weekNumber - a.weekNumber
+    (a, b) => b.week_number - a.week_number
   ); // Latest week first
   const currentWeekPlan = selectedWorkoutPlanId
     ? userWorkoutPlans.find((plan) => plan.id === selectedWorkoutPlanId)
     : sortedWorkoutPlans[0];
   const previousWeekPlan = sortedWorkoutPlans.find(
-    (plan) => plan.weekNumber === (currentWeekPlan?.weekNumber || 1) - 1
+    (plan) => plan.week_number === (currentWeekPlan?.week_number || 1) - 1
   );
 
-  const userMealPlans = mealPlans.filter((plan) => plan.clientId === user?.id);
+  const userMealPlans = mealPlans.filter((plan) => plan.client_id === user?.id);
   const currentMealPlan = selectedMealPlanId
     ? userMealPlans.find((plan) => plan.id === selectedMealPlanId)
     : userMealPlans[0];
 
   const userWeightRecords = weightRecords
-    .filter((record) => record.clientId === user?.id)
+    .filter((record) => record.client_id === user?.id)
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-  const handleWeightSubmit = (e: React.FormEvent) => {
+  const handleWeightSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (newWeight && user) {
-      addWeightRecord({
-        id: `weight-${Date.now()}`,
-        clientId: user.id,
-        weight: parseFloat(newWeight),
-        date: new Date().toISOString().split("T")[0],
-        notes: weightNotes,
-      });
-      setNewWeight("");
-      setWeightNotes("");
+      try {
+        await addWeightRecord({
+          client_id: user.id,
+          weight: parseFloat(newWeight),
+          date: new Date().toISOString().split("T")[0],
+          notes: weightNotes,
+        });
+        setNewWeight("");
+        setWeightNotes("");
+      } catch (error) {
+        console.error('Error adding weight record:', error);
+      }
     }
   };
 
-  const updateSetData = (
+  const updateSetData = async (
     dayIndex: number,
     exerciseIndex: number,
     setIndex: number,
@@ -80,8 +83,7 @@ const ClientDashboard: React.FC = () => {
     if (!currentWeekPlan) return;
 
     const updatedPlan = { ...currentWeekPlan };
-    const set =
-      updatedPlan.days[dayIndex].exercises[exerciseIndex].sets[setIndex];
+    const set = updatedPlan.days[dayIndex].exercises[exerciseIndex].sets[setIndex];
     set[field] = value;
 
     // Calculate volume
@@ -89,13 +91,21 @@ const ClientDashboard: React.FC = () => {
       set.volume = (set.reality || set.reps) * (set.weight || 0);
     }
 
-    updateWorkoutPlan(currentWeekPlan.id, updatedPlan);
+    try {
+      await updateWorkoutPlan(currentWeekPlan.id, updatedPlan);
+    } catch (error) {
+      console.error('Error updating workout plan:', error);
+    }
   };
 
-  const handleCreateNewWeek = () => {
+  const handleCreateNewWeek = async () => {
     if (currentWeekPlan && user) {
-      createNewWeekPlan(user.id, currentWeekPlan.id);
-      setSelectedWorkoutPlanId(null); // Reset to show the latest plan
+      try {
+        await createNewWeekPlan(user.id, currentWeekPlan.id);
+        setSelectedWorkoutPlanId(null); // Reset to show the latest plan
+      } catch (error) {
+        console.error('Error creating new week:', error);
+      }
     }
   };
 
@@ -149,7 +159,7 @@ const ClientDashboard: React.FC = () => {
         <div className="mb-3 sm:mb-4 lg:mb-6">
           <div className="bg-gradient-to-r from-fitness-black to-fitness-red rounded-2xl p-3 sm:p-4 lg:p-6 text-white shadow-2xl">
             <h1 className="text-lg sm:text-2xl lg:text-3xl font-bold mb-1 sm:mb-2">
-              👋 Chào mừng, {user?.fullName}!
+              👋 Chào mừng, {user?.full_name}!
             </h1>
             <p className="text-gray-200 text-xs sm:text-sm lg:text-base">
               Theo dõi tiến độ tập luyện và chế độ dinh dưỡng của bạn
@@ -193,14 +203,14 @@ const ClientDashboard: React.FC = () => {
                     >
                       {sortedWorkoutPlans.map((plan) => (
                         <option key={plan.id} value={plan.id}>
-                          {plan.name} (Tuần {plan.weekNumber})
+                          {plan.name} (Tuần {plan.week_number})
                         </option>
                       ))}
                     </select>
                     <div className="flex items-center space-x-2 sm:space-x-4 text-xs sm:text-sm text-gray-600">
                       <span className="flex items-center space-x-1">
                         <Calendar className="h-3 w-3 sm:h-4 sm:w-4" />
-                        <span>Tuần {currentWeekPlan?.weekNumber}</span>
+                        <span>Tuần {currentWeekPlan?.week_number}</span>
                       </span>
                       <button
                         onClick={handleCreateNewWeek}
@@ -449,7 +459,7 @@ const ClientDashboard: React.FC = () => {
                         📊 Tổng calories trong ngày:
                       </span>
                       <span className="text-lg sm:text-xl font-bold text-fitness-red">
-                        {currentMealPlan?.totalCalories} kcal
+                        {currentMealPlan?.total_calories} kcal
                       </span>
                     </div>
                     {currentMealPlan?.notes && (

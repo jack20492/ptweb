@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../contexts/SupabaseAuthContext';
 import { Dumbbell, Eye, EyeOff } from 'lucide-react';
 
 interface LoginProps {
@@ -11,16 +11,25 @@ const Login: React.FC<LoginProps> = ({ onClose }) => {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
   const { login } = useAuth();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setLoading(true);
     
-    if (login(username, password)) {
-      onClose();
-    } else {
-      setError('Tên đăng nhập hoặc mật khẩu không đúng');
+    try {
+      const success = await login(username, password);
+      if (success) {
+        onClose();
+      } else {
+        setError('Tên đăng nhập hoặc mật khẩu không đúng');
+      }
+    } catch (error) {
+      setError('Có lỗi xảy ra khi đăng nhập');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -45,6 +54,7 @@ const Login: React.FC<LoginProps> = ({ onClose }) => {
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-fitness-red focus:border-transparent"
                 placeholder="Nhập tên đăng nhập hoặc email"
                 required
+                disabled={loading}
               />
             </div>
 
@@ -60,11 +70,13 @@ const Login: React.FC<LoginProps> = ({ onClose }) => {
                   className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-fitness-red focus:border-transparent"
                   placeholder="Nhập mật khẩu"
                   required
+                  disabled={loading}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                  disabled={loading}
                 >
                   {showPassword ? (
                     <EyeOff className="h-4 w-4 text-gray-400" />
@@ -92,14 +104,16 @@ const Login: React.FC<LoginProps> = ({ onClose }) => {
                 type="button"
                 onClick={onClose}
                 className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors"
+                disabled={loading}
               >
                 Hủy
               </button>
               <button
                 type="submit"
-                className="flex-1 px-4 py-2 bg-fitness-red text-white rounded-md hover:bg-red-700 transition-colors"
+                className="flex-1 px-4 py-2 bg-fitness-red text-white rounded-md hover:bg-red-700 transition-colors disabled:opacity-50"
+                disabled={loading}
               >
-                Đăng nhập
+                {loading ? 'Đang đăng nhập...' : 'Đăng nhập'}
               </button>
             </div>
           </form>

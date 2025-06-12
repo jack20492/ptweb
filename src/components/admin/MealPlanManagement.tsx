@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useData } from "../../contexts/DataContext";
+import { useData } from "../../contexts/SupabaseDataContext";
 import {
   Plus,
   Edit,
@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 
 const MealPlanManagement: React.FC = () => {
-  const { mealPlans, addMealPlan, updateMealPlan, deleteMealPlan } = useData();
+  const { mealPlans, users, addMealPlan, updateMealPlan, deleteMealPlan } = useData();
   const [showForm, setShowForm] = useState(false);
   const [editingPlan, setEditingPlan] = useState<any>(null);
   const [selectedClient, setSelectedClient] = useState("");
@@ -59,50 +59,46 @@ const MealPlanManagement: React.FC = () => {
   ]);
   const [notes, setNotes] = useState("");
 
-  // Duplicate meal plan state
-  const [showDuplicateModal, setShowDuplicateModal] = useState(false);
-  const [planToDuplicate, setPlanToDuplicate] = useState<any>(null);
-  const [duplicateClientId, setDuplicateClientId] = useState("");
-
   // Delete confirm popup state
   const [showDeletePopup, setShowDeletePopup] = useState(false);
   const [planToDelete, setPlanToDelete] = useState<any>(null);
 
-  const clients = JSON.parse(localStorage.getItem("pt_users") || "[]").filter(
-    (u: any) => u.role === "client"
-  );
+  const clients = users.filter((u: any) => u.role === "client");
 
   const filteredPlans = mealPlans.filter((plan) => {
-    const client = clients.find((c: any) => c.id === plan.clientId);
-    const clientName = client?.fullName || "";
+    const client = clients.find((c: any) => c.id === plan.client_id);
+    const clientName = client?.full_name || "";
     return clientName.toLowerCase().includes(searchTerm.toLowerCase());
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    try {
+      const totalCalories = meals.reduce(
+        (sum, meal) => sum + meal.totalCalories,
+        0
+      );
 
-    const totalCalories = meals.reduce(
-      (sum, meal) => sum + meal.totalCalories,
-      0
-    );
+      const planData = {
+        name: planName || "Chế độ dinh dưỡng",
+        clientId: selectedClient,
+        meals: meals.filter((meal) =>
+          meal.foods.some((food) => food.name.trim())
+        ),
+        totalCalories,
+        notes,
+      };
 
-    const planData = {
-      id: editingPlan?.id || `meal-plan-${Date.now()}`,
-      name: planName || "Chế độ dinh dưỡng",
-      clientId: selectedClient,
-      meals: meals.filter((meal) =>
-        meal.foods.some((food) => food.name.trim())
-      ),
-      totalCalories,
-      notes,
-    };
-
-    if (editingPlan) {
-      updateMealPlan(editingPlan.id, planData);
-    } else {
-      addMealPlan(planData);
+      if (editingPlan) {
+        await updateMealPlan(editingPlan.id, planData);
+      } else {
+        await addMealPlan(planData);
+      }
+      resetForm();
+    } catch (error) {
+      console.error('Error saving meal plan:', error);
+      alert('Có lỗi xảy ra khi lưu meal plan');
     }
-    resetForm();
   };
 
   const resetForm = () => {
@@ -224,48 +220,16 @@ const MealPlanManagement: React.FC = () => {
 
   const handleEdit = (plan: any) => {
     setEditingPlan(plan);
-    setSelectedClient(plan.clientId);
+    setSelectedClient(plan.client_id);
     setPlanName(plan.name || "");
     setMeals(plan.meals);
     setNotes(plan.notes || "");
     setShowForm(true);
   };
 
-  // Duplicate logic
-  const handleDuplicate = (plan: any) => {
-    setPlanToDuplicate(plan);
-    setDuplicateClientId("");
-    setShowDuplicateModal(true);
-  };
-
-  const confirmDuplicate = () => {
-    if (!planToDuplicate || !duplicateClientId) return;
-    // Deep clone meals
-    const clonedMeals = planToDuplicate.meals.map((meal: any) => ({
-      ...meal,
-      foods: meal.foods.map((food: any) => ({ ...food })),
-    }));
-    const totalCalories = clonedMeals.reduce(
-      (sum: number, meal: any) => sum + (meal.totalCalories || 0),
-      0
-    );
-    const newPlan = {
-      ...planToDuplicate,
-      id: `meal-plan-${Date.now()}`,
-      clientId: duplicateClientId,
-      meals: clonedMeals,
-      totalCalories,
-      name: planToDuplicate.name + " (Copy)",
-    };
-    addMealPlan(newPlan);
-    setShowDuplicateModal(false);
-    setPlanToDuplicate(null);
-    setDuplicateClientId("");
-  };
-
   const getClientName = (clientId: string) => {
     const client = clients.find((c: any) => c.id === clientId);
-    return client?.fullName || "Không tìm thấy";
+    return client?.full_name || "Không tìm thấy";
   };
 
   const getMacroColor = (macroType: string) => {
@@ -281,18 +245,23 @@ const MealPlanManagement: React.FC = () => {
     }
   };
 
-  // Delete popup logic
   const openDeletePopup = (plan: any) => {
     setPlanToDelete(plan);
     setShowDeletePopup(true);
   };
-  const handleConfirmDelete = () => {
+
+  const handleConfirmDelete = async () => {
     if (planToDelete) {
-      deleteMealPlan(planToDelete.id);
+      try {
+        await deleteMealPlan(planToDelete.id);
+        setShowDeletePopup(false);
+        setPlanToDelete(null);
+      } catch (error) {
+        console.error('Error deleting meal plan:', error);
+      }
     }
-    setShowDeletePopup(false);
-    setPlanToDelete(null);
   };
+
   const handleCancelDelete = () => {
     setShowDeletePopup(false);
     setPlanToDelete(null);
@@ -343,19 +312,19 @@ const MealPlanManagement: React.FC = () => {
               <div className="flex flex-col sm:flex-row sm:items-start justify-between mb-3 sm:mb-4 lg:mb-6 space-y-3 sm:space-y-0">
                 <div className="flex-1">
                   <h3 className="text-base sm:text-lg lg:text-xl font-bold text-fitness-black mb-2">
-                    🍽️ {plan.name} - {getClientName(plan.clientId)}
+                    🍽️ {plan.name} - {getClientName(plan.client_id)}
                   </h3>
                   <div className="flex flex-wrap items-center gap-2 sm:gap-3 lg:gap-4 text-xs sm:text-sm text-gray-600">
                     <span className="flex items-center space-x-1">
                       <User className="h-3 w-3 sm:h-4 sm:w-4" />
-                      <span>{getClientName(plan.clientId)}</span>
+                      <span>{getClientName(plan.client_id)}</span>
                     </span>
                     <span className="flex items-center space-x-1">
                       <Utensils className="h-3 w-3 sm:h-4 sm:w-4" />
                       <span>{plan.meals.length} bữa ăn</span>
                     </span>
                     <span className="bg-fitness-red text-white px-2 sm:px-3 py-1 rounded-full text-xs font-medium">
-                      {plan.totalCalories} kcal/ngày
+                      {plan.total_calories} kcal/ngày
                     </span>
                   </div>
                 </div>
@@ -371,13 +340,6 @@ const MealPlanManagement: React.FC = () => {
                     className="p-2 sm:p-3 text-red-600 hover:bg-red-50 rounded-xl transition-all duration-200 hover:scale-110"
                   >
                     <Trash2 className="h-3 w-3 sm:h-4 sm:w-4 lg:h-5 lg:w-5" />
-                  </button>
-                  <button
-                    onClick={() => handleDuplicate(plan)}
-                    className="p-2 sm:p-3 text-purple-600 hover:bg-purple-50 rounded-xl transition-all duration-200 hover:scale-110"
-                    title="Duplicate meal plan"
-                  >
-                    <Copy className="h-3 w-3 sm:h-4 sm:w-4 lg:h-5 lg:w-5" />
                   </button>
                 </div>
               </div>
@@ -507,7 +469,7 @@ const MealPlanManagement: React.FC = () => {
                       <option value="">Chọn học viên</option>
                       {clients.map((client: any) => (
                         <option key={client.id} value={client.id}>
-                          {client.fullName}
+                          {client.full_name}
                         </option>
                       ))}
                     </select>
@@ -710,49 +672,6 @@ const MealPlanManagement: React.FC = () => {
         </div>
       )}
 
-      {/* Duplicate Modal */}
-      {showDuplicateModal && planToDuplicate && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-bold text-fitness-black">
-                Duplicate meal plan
-              </h3>
-              <button
-                onClick={() => setShowDuplicateModal(false)}
-                className="p-2 hover:bg-gray-100 rounded-full"
-              >
-                <X className="h-6 w-6 text-gray-500" />
-              </button>
-            </div>
-            <div>
-              <label className="block mb-2 text-gray-700 font-medium">
-                Chọn học viên để gán meal plan này:
-              </label>
-              <select
-                value={duplicateClientId}
-                onChange={(e) => setDuplicateClientId(e.target.value)}
-                className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-fitness-red focus:border-transparent transition-all duration-200 mb-4"
-              >
-                <option value="">-- Chọn học viên --</option>
-                {clients.map((client: any) => (
-                  <option key={client.id} value={client.id}>
-                    {client.fullName}
-                  </option>
-                ))}
-              </select>
-              <button
-                onClick={confirmDuplicate}
-                disabled={!duplicateClientId}
-                className="w-full px-6 py-3 bg-gradient-to-r from-fitness-red to-red-600 text-white rounded-lg hover:from-red-600 hover:to-red-700 transition-all duration-200 font-medium"
-              >
-                Xác nhận Duplicate
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Delete Confirm Popup */}
       {showDeletePopup && planToDelete && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
@@ -765,8 +684,8 @@ const MealPlanManagement: React.FC = () => {
                 Xóa meal plan?
               </h3>
               <p className="text-gray-600 mb-6">
-                Bạn có chắc chắn muốn xóa meal plan{" "}
-                <span className="font-semibold">{planToDelete.name}</span>?
+                Bạn có chắc chắn muốn xóa meal plan
+                <span className="font-semibold"> {planToDelete.name}</span>?
                 <br />
                 Hành động này không thể hoàn tác.
               </p>
