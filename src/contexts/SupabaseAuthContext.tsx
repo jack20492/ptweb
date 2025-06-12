@@ -69,18 +69,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
 
       if (!existingUser) {
-        // Create admin user through Supabase Auth
-        // The database trigger will automatically create the user profile
+        // Create admin user through Supabase Auth without options.data
         const { data: authData, error: authError } = await supabase.auth.signUp({
           email: 'admin@phinpt.com',
-          password: 'admin123',
-          options: {
-            data: {
-              username: 'admin',
-              full_name: 'Phi Nguyễn PT',
-              role: 'admin'
-            }
-          }
+          password: 'admin123'
         })
 
         if (authError) {
@@ -88,9 +80,26 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           return
         }
 
-        // The user profile should be automatically created by the database trigger
-        // No need for manual insert as it was causing conflicts
-        console.log('Admin user created successfully')
+        if (authData.user) {
+          // Manually create the user profile in the database
+          const { error: profileError } = await supabase
+            .from('users')
+            .insert({
+              id: authData.user.id,
+              username: 'admin',
+              email: 'admin@phinpt.com',
+              password_hash: '', // This will be managed by Supabase Auth
+              full_name: 'Phi Nguyễn PT',
+              role: 'admin'
+            })
+
+          if (profileError) {
+            console.error('Error creating admin user profile:', profileError)
+            return
+          }
+
+          console.log('Admin user created successfully')
+        }
       }
     } catch (error) {
       console.error('Error initializing admin user:', error)
