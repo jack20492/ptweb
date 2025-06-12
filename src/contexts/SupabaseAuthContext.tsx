@@ -70,13 +70,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const login = async (username: string, password: string): Promise<boolean> => {
     try {
-      // First, find the user by username or email
+      // First, try to find the user by username or email
       const { data: userData, error: userError } = await supabase
         .from('users')
         .select('email')
         .or(`username.eq.${username},email.eq.${username}`)
-        .single()
+        .maybeSingle() // Use maybeSingle() instead of single() to handle no results gracefully
 
+      // If no user found, return false
       if (userError || !userData) {
         return false
       }
