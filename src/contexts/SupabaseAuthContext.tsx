@@ -45,10 +45,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           .from('users')
           .select('*')
           .eq('id', userData.id)
-          .single()
         
-        if (!error && data) {
-          setUser(data)
+        if (!error && data && data.length > 0) {
+          setUser(data[0])
         } else {
           localStorage.removeItem('current_user')
         }
@@ -70,17 +69,23 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         .from('users')
         .select('*')
         .or(`username.eq.${username},email.eq.${username}`)
-        .single()
 
-      if (error || !userData) {
-        console.error('User not found:', error)
+      if (error) {
+        console.error('Database error:', error)
         return false
       }
 
+      if (!userData || userData.length === 0) {
+        console.error('User not found')
+        return false
+      }
+
+      const user = userData[0]
+
       // Simple password check (in production, use proper hashing)
-      if (userData.password_hash === password) {
-        setUser(userData)
-        localStorage.setItem('current_user', JSON.stringify(userData))
+      if (user.password_hash === password) {
+        setUser(user)
+        localStorage.setItem('current_user', JSON.stringify(user))
         return true
       }
 
