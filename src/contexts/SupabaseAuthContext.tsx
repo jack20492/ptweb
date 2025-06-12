@@ -36,6 +36,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       setLoading(true)
       
+      // Check if default admin user exists, create if not
+      await ensureDefaultAdminExists()
+      
       // Check if there's a stored user session
       const storedUser = localStorage.getItem('current_user')
       if (storedUser) {
@@ -57,6 +60,43 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       localStorage.removeItem('current_user')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const ensureDefaultAdminExists = async () => {
+    try {
+      // Check if admin user exists
+      const { data: adminUser, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('username', 'admin')
+        .eq('role', 'admin')
+
+      if (error) {
+        console.error('Error checking for admin user:', error)
+        return
+      }
+
+      // If admin user doesn't exist, create it
+      if (!adminUser || adminUser.length === 0) {
+        const { error: insertError } = await supabase
+          .from('users')
+          .insert({
+            username: 'admin',
+            email: 'admin@example.com',
+            password_hash: 'admin123',
+            full_name: 'Administrator',
+            role: 'admin'
+          })
+
+        if (insertError) {
+          console.error('Error creating default admin user:', insertError)
+        } else {
+          console.log('Default admin user created successfully')
+        }
+      }
+    } catch (error) {
+      console.error('Error ensuring default admin exists:', error)
     }
   }
 
