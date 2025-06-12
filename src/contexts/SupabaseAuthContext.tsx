@@ -29,9 +29,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    // Initialize admin user on app start
+    initializeAdminUser()
+    
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
-      console.log('Initial session:', session)
       if (session?.user) {
         fetchUserProfile(session.user.id)
       } else {
@@ -41,7 +43,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('Auth state change:', event, session)
       if (session?.user) {
         await fetchUserProfile(session.user.id)
       } else {
@@ -53,16 +54,52 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     return () => subscription.unsubscribe()
   }, [])
 
+  const initializeAdminUser = async () => {
+    try {
+      // Check if admin user exists
+      const { data: existingUser } = await supabase
+        .from('users')
+        .select('id')
+        .eq('email', 'admin@phinpt.com')
+        .single()
+
+      if (!existingUser) {
+        // Create admin user through Supabase Auth
+        const { data: authData, error: authError } = await supabase.auth.signUp({
+          email: 'admin@phinpt.com',
+          password: 'admin123',
+          options: {
+            data: {
+              username: 'admin',
+              full_name: 'Phi Nguyễn PT',
+              role: 'admin'
+            }
+          }
+        })
+
+        if (authError) {
+          console.error('Error creating admin user:', authError)
+          return
+        }
+
+        if (authData.user) {
+          // Call the setup function to ensure proper user data
+          await supabase.rpc('setup_admin_user', { user_id: authData.user.id })
+        }
+      }
+    } catch (error) {
+      console.error('Error initializing admin user:', error)
+    }
+  }
+
   const fetchUserProfile = async (userId: string) => {
     try {
-      console.log('Fetching user profile for:', userId)
       const { data, error } = await supabase
         .from('users')
         .select('*')
         .eq('id', userId)
         .single()
 
-      console.log('User profile data:', data, 'Error:', error)
       if (error) throw error
       setUser(data)
     } catch (error) {
@@ -74,47 +111,30 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const login = async (username: string, password: string): Promise<boolean> => {
     try {
-      console.log('Attempting login with:', username)
-      
-      // Try to sign in directly with email first
       let email = username
       
       // If username doesn't contain @, try to find the email from users table
       if (!username.includes('@')) {
-        console.log('Username provided, looking up email...')
         const { data: userData, error: userError } = await supabase
           .from('users')
           .select('email')
           .eq('username', username)
-          .maybeSingle()
+          .single()
 
-        console.log('User lookup result:', userData, 'Error:', userError)
-        
-        if (userData?.email) {
-          email = userData.email
-          console.log('Found email:', email)
-        } else {
-          console.log('No user found with username:', username)
+        if (userError || !userData?.email) {
           return false
         }
+        
+        email = userData.email
       }
 
-      console.log('Attempting auth with email:', email, 'password:', password)
-      
       // Sign in with email and password
-      const { data, error } = await supabase.auth.signInWithPassword({
+      const { error } = await supabase.auth.signInWithPassword({
         email: email,
         password: password
       })
 
-      console.log('Auth result:', data, 'Error:', error)
-
-      if (error) {
-        console.error('Auth error:', error.message)
-        return false
-      }
-
-      return true
+      return !error
     } catch (error) {
       console.error('Login error:', error)
       return false
