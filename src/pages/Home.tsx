@@ -13,11 +13,12 @@ import {
   Target,
   Users,
   Award,
+  Loader2,
 } from "lucide-react";
 import Login from "../components/Login";
 
 const Home: React.FC = () => {
-  const { testimonials, videos, contactInfo, homeContent } = useData();
+  const { testimonials, videos, contactInfo, homeContent, loading } = useData();
   const { user } = useAuth();
   const [showLogin, setShowLogin] = useState(false);
   const contactRef = useRef<HTMLElement>(null);
@@ -28,15 +29,26 @@ const Home: React.FC = () => {
     }
   };
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-12 w-12 animate-spin text-fitness-red mx-auto mb-4" />
+          <p className="text-gray-600 text-lg">Đang tải dữ liệu...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Hero Section */}
       <section className="relative bg-gradient-to-br from-fitness-black via-gray-900 to-fitness-red text-white overflow-hidden">
         <div className="absolute inset-0 bg-black opacity-20"></div>
-        {homeContent.heroImage && (
+        {homeContent?.hero_image && (
           <div className="absolute inset-0">
             <img
-              src={homeContent.heroImage}
+              src={homeContent.hero_image}
               alt="Hero background"
               className="w-full h-full object-cover opacity-30"
             />
@@ -57,11 +69,11 @@ const Home: React.FC = () => {
             </div>
 
             <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-bold mb-4 sm:mb-6 bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
-              {homeContent.heroTitle}
+              {homeContent?.hero_title}
             </h1>
 
             <p className="text-sm sm:text-base md:text-lg lg:text-xl mb-6 sm:mb-8 lg:mb-10 text-gray-200 max-w-3xl mx-auto leading-relaxed px-2 sm:px-4">
-              {homeContent.heroSubtitle}
+              {homeContent?.hero_subtitle}
             </p>
 
             <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center items-center">
@@ -139,13 +151,13 @@ const Home: React.FC = () => {
           <div className="grid md:grid-cols-2 gap-8 sm:gap-12 lg:gap-16 items-center">
             <div>
               <p className="text-base sm:text-lg lg:text-xl text-gray-600 leading-relaxed">
-                {homeContent.aboutText}
+                {homeContent?.about_text}
               </p>
             </div>
-            {homeContent.aboutImage && (
+            {homeContent?.about_image && (
               <div className="order-first md:order-last">
                 <img
-                  src={homeContent.aboutImage}
+                  src={homeContent.about_image}
                   alt="About PT Phi Nguyen"
                   className="w-full h-64 sm:h-80 lg:h-96 object-cover rounded-2xl shadow-xl"
                 />
@@ -158,12 +170,12 @@ const Home: React.FC = () => {
         <section className="mb-16 sm:mb-20 lg:mb-24">
           <div className="text-center mb-12 sm:mb-16">
             <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-fitness-black mb-4 sm:mb-6">
-              {homeContent.servicesTitle}
+              {homeContent?.services_title}
             </h2>
             <div className="w-24 sm:w-32 h-2 bg-gradient-to-r from-fitness-red to-red-600 mx-auto mb-6 sm:mb-8 rounded-full"></div>
           </div>
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 lg:gap-8">
-            {homeContent.services.map((service, index) => (
+            {homeContent?.services?.map((service, index) => (
               <div
                 key={index}
                 className="group bg-white p-6 sm:p-8 rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-500 transform hover:-translate-y-4 border-l-4 border-fitness-red relative overflow-hidden"
@@ -241,27 +253,27 @@ const Home: React.FC = () => {
                     </p>
                   </div>
 
-                  {(testimonial.beforeImage || testimonial.afterImage) && (
+                  {(testimonial.before_image || testimonial.after_image) && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
-                      {testimonial.beforeImage && (
+                      {testimonial.before_image && (
                         <div>
                           <p className="text-xs sm:text-sm font-medium text-gray-700 mb-2">
                             📸 Trước
                           </p>
                           <img
-                            src={testimonial.beforeImage}
+                            src={testimonial.before_image}
                             alt="Before"
                             className="w-full h-32 sm:h-40 object-cover rounded-xl border-2 border-gray-200"
                           />
                         </div>
                       )}
-                      {testimonial.afterImage && (
+                      {testimonial.after_image && (
                         <div>
                           <p className="text-xs sm:text-sm font-medium text-gray-700 mb-2">
                             ✨ Sau
                           </p>
                           <img
-                            src={testimonial.afterImage}
+                            src={testimonial.after_image}
                             alt="After"
                             className="w-full h-32 sm:h-40 object-cover rounded-xl border-2 border-gray-200"
                           />
@@ -292,7 +304,7 @@ const Home: React.FC = () => {
                 >
                   <div className="relative aspect-video bg-gray-200 overflow-hidden">
                     <iframe
-                      src={`https://www.youtube.com/embed/${video.youtubeId}`}
+                      src={`https://www.youtube.com/embed/${video.youtube_id}`}
                       title={video.title}
                       className="absolute inset-0 w-full h-full group-hover:scale-105 transition-transform duration-500"
                       allowFullScreen
@@ -342,38 +354,38 @@ const Home: React.FC = () => {
               {
                 icon: Phone,
                 label: "Điện thoại",
-                value: contactInfo.phone,
-                href: `tel:${contactInfo.phone}`,
+                value: contactInfo?.phone,
+                href: `tel:${contactInfo?.phone}`,
                 color: "from-green-500 to-green-600",
               },
               {
                 icon: Facebook,
                 label: "Facebook",
                 value: "Nhắn tin",
-                href: contactInfo.facebook,
+                href: contactInfo?.facebook,
                 color: "from-blue-500 to-blue-600",
               },
               {
                 icon: MessageCircle,
                 label: "Zalo",
                 value: "Chat trực tiếp",
-                href: contactInfo.zalo,
+                href: contactInfo?.zalo,
                 color: "from-blue-400 to-blue-500",
               },
               {
                 icon: Mail,
                 label: "Email",
-                value: contactInfo.email,
-                href: `mailto:${contactInfo.email}`,
+                value: contactInfo?.email,
+                href: `mailto:${contactInfo?.email}`,
                 color: "from-red-500 to-red-600",
               },
             ].map((contact, index) => (
               <a
                 key={index}
                 href={contact.href}
-                target={contact.href.startsWith("http") ? "_blank" : undefined}
+                target={contact.href?.startsWith("http") ? "_blank" : undefined}
                 rel={
-                  contact.href.startsWith("http")
+                  contact.href?.startsWith("http")
                     ? "noopener noreferrer"
                     : undefined
                 }

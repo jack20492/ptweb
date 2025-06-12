@@ -83,14 +83,41 @@ export const useData = () => {
   return context
 }
 
+// Default values to prevent null errors
+const defaultHomeContent: HomeContent = {
+  id: '',
+  hero_title: 'Chào mừng đến với PT Phi Nguyễn',
+  hero_subtitle: 'Hãy để tôi giúp bạn đạt được mục tiêu fitness của mình',
+  hero_image: null,
+  about_text: 'Với nhiều năm kinh nghiệm trong lĩnh vực fitness, tôi cam kết mang đến cho bạn những buổi tập hiệu quả nhất.',
+  about_image: null,
+  services_title: 'Dịch vụ của tôi',
+  services: [
+    'Personal Training 1-1',
+    'Lập kế hoạch tập luyện',
+    'Tư vấn dinh dưỡng',
+    'Theo dõi tiến độ'
+  ],
+  updated_at: null
+}
+
+const defaultContactInfo: ContactInfo = {
+  id: '',
+  phone: '0123456789',
+  facebook: 'https://facebook.com',
+  zalo: 'https://zalo.me',
+  email: 'contact@example.com',
+  updated_at: null
+}
+
 export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [workoutPlans, setWorkoutPlans] = useState<WorkoutPlan[]>([])
   const [mealPlans, setMealPlans] = useState<MealPlan[]>([])
   const [weightRecords, setWeightRecords] = useState<WeightRecord[]>([])
   const [testimonials, setTestimonials] = useState<Testimonial[]>([])
   const [videos, setVideos] = useState<Video[]>([])
-  const [contactInfo, setContactInfo] = useState<ContactInfo | null>(null)
-  const [homeContent, setHomeContent] = useState<HomeContent | null>(null)
+  const [contactInfo, setContactInfo] = useState<ContactInfo>(defaultContactInfo)
+  const [homeContent, setHomeContent] = useState<HomeContent>(defaultHomeContent)
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -518,7 +545,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const { error } = await supabase
         .from('meal_plans')
         .delete()
-        .eq('id', planId)
+        .eq('planId', planId)
 
       if (error) throw error
       await fetchMealPlans()
@@ -685,9 +712,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         .single()
 
       if (error && error.code !== 'PGRST116') throw error
-      setContactInfo(data)
+      setContactInfo(data || defaultContactInfo)
     } catch (error) {
       console.error('Error fetching contact info:', error)
+      setContactInfo(defaultContactInfo)
     }
   }
 
@@ -715,9 +743,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         .single()
 
       if (error && error.code !== 'PGRST116') throw error
-      setHomeContent(data)
+      setHomeContent(data || defaultHomeContent)
     } catch (error) {
       console.error('Error fetching home content:', error)
+      setHomeContent(defaultHomeContent)
     }
   }
 
