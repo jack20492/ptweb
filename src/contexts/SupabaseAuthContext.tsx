@@ -56,7 +56,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const initializeAdminUser = async () => {
     try {
-      // Check if admin user exists - use maybeSingle() instead of single()
+      // Check if admin user exists
       const { data: existingUser, error: checkError } = await supabase
         .from('users')
         .select('id')
@@ -69,10 +69,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
 
       if (!existingUser) {
-        // Create admin user through Supabase Auth without options.data
+        // Create admin user through Supabase Auth with metadata
         const { data: authData, error: authError } = await supabase.auth.signUp({
           email: 'admin@phinpt.com',
-          password: 'admin123'
+          password: 'admin123',
+          options: {
+            data: {
+              username: 'admin',
+              full_name: 'Phi Nguyễn PT',
+              role: 'admin',
+              phone: '0123456789'
+            }
+          }
         })
 
         if (authError) {
@@ -81,20 +89,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
 
         if (authData.user) {
-          // Manually create the user profile in the database
-          const { error: profileError } = await supabase
-            .from('users')
-            .insert({
-              id: authData.user.id,
-              username: 'admin',
-              email: 'admin@phinpt.com',
-              password_hash: '', // This will be managed by Supabase Auth
-              full_name: 'Phi Nguyễn PT',
-              role: 'admin'
-            })
+          // Call database function to setup admin user properly
+          const { error: setupError } = await supabase.rpc('setup_admin_user', {
+            user_id: authData.user.id
+          })
 
-          if (profileError) {
-            console.error('Error creating admin user profile:', profileError)
+          if (setupError) {
+            console.error('Error setting up admin user:', setupError)
             return
           }
 
