@@ -1,7 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider, useAuth } from './contexts/AuthContext';
-import { DataProvider } from './contexts/DataContext';
+import { AuthProvider, useAuth } from './contexts/SupabaseAuthContext';
+import { DataProvider } from './contexts/SupabaseDataContext';
 import Navigation from './components/Navigation';
 import Home from './pages/Home';
 import AdminDashboard from './pages/AdminDashboard';
@@ -11,10 +11,21 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode; adminOnly?: boolean 
   children, 
   adminOnly = false 
 }) => {
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, loading } = useAuth();
+  
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-fitness-red mx-auto mb-4"></div>
+          <p className="text-gray-600">Đang tải...</p>
+        </div>
+      </div>
+    );
+  }
   
   if (!user) {
-    return <Navigate to="/\" replace />;
+    return <Navigate to="/" replace />;
   }
   
   if (adminOnly && !isAdmin) {
@@ -25,7 +36,18 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode; adminOnly?: boolean 
 };
 
 const AppRoutes: React.FC = () => {
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-fitness-red mx-auto mb-4"></div>
+          <p className="text-gray-600">Đang tải...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <Router>
@@ -45,11 +67,11 @@ const AppRoutes: React.FC = () => {
             path="/dashboard" 
             element={
               <ProtectedRoute>
-                {isAdmin ? <Navigate to="/admin\" replace /> : <ClientDashboard />}
+                {isAdmin ? <Navigate to="/admin" replace /> : <ClientDashboard />}
               </ProtectedRoute>
             } 
           />
-          <Route path="*" element={<Navigate to="/\" replace />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>
     </Router>
