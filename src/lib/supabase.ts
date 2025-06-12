@@ -14,6 +14,7 @@ export interface User {
   id: string
   username: string
   email: string
+  password_hash?: string
   full_name: string
   phone?: string
   role: 'admin' | 'client'
