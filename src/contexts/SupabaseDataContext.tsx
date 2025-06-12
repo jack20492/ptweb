@@ -128,8 +128,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const fetchAllData = async () => {
     setLoading(true)
     try {
-      // Fetch data with error handling for each request
-      const results = await Promise.allSettled([
+      await Promise.all([
         fetchWorkoutPlans(),
         fetchMealPlans(),
         fetchWeightRecords(),
@@ -139,13 +138,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         fetchHomeContent(),
         fetchUsers()
       ])
-      
-      // Log any failed requests
-      results.forEach((result, index) => {
-        if (result.status === 'rejected') {
-          console.error(`Failed to fetch data for request ${index}:`, result.reason)
-        }
-      })
     } catch (error) {
       console.error('Error fetching data:', error)
     } finally {
@@ -203,20 +195,70 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const addWorkoutPlan = async (planData: any) => {
     try {
-      // For demo, generate a simple ID and add to state
-      const newPlan = {
-        id: `plan-${Date.now()}`,
-        name: planData.name,
-        client_id: planData.clientId,
-        week_number: planData.weekNumber || 1,
-        start_date: planData.startDate,
-        created_by: planData.createdBy || 'admin',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        days: planData.days
+      // Insert workout plan
+      const { data: plan, error: planError } = await supabase
+        .from('workout_plans')
+        .insert({
+          name: planData.name,
+          client_id: planData.clientId,
+          week_number: planData.weekNumber || 1,
+          start_date: planData.startDate,
+          created_by: planData.createdBy || 'admin'
+        })
+        .select()
+        .single()
+
+      if (planError) throw planError
+
+      // Insert workout days and exercises
+      for (const [dayIndex, day] of planData.days.entries()) {
+        const { data: workoutDay, error: dayError } = await supabase
+          .from('workout_days')
+          .insert({
+            workout_plan_id: plan.id,
+            day_name: day.day,
+            day_order: dayIndex + 1,
+            is_rest_day: day.isRestDay
+          })
+          .select()
+          .single()
+
+        if (dayError) throw dayError
+
+        if (!day.isRestDay && day.exercises) {
+          for (const [exerciseIndex, exercise] of day.exercises.entries()) {
+            const { data: exerciseData, error: exerciseError } = await supabase
+              .from('exercises')
+              .insert({
+                workout_day_id: workoutDay.id,
+                name: exercise.name,
+                exercise_order: exerciseIndex + 1
+              })
+              .select()
+              .single()
+
+            if (exerciseError) throw exerciseError
+
+            // Insert exercise sets
+            const sets = exercise.sets.map((set: any, setIndex: number) => ({
+              exercise_id: exerciseData.id,
+              set_number: setIndex + 1,
+              reps: set.reps,
+              reality: set.reality,
+              weight: set.weight,
+              volume: set.volume
+            }))
+
+            const { error: setsError } = await supabase
+              .from('exercise_sets')
+              .insert(sets)
+
+            if (setsError) throw setsError
+          }
+        }
       }
-      
-      setWorkoutPlans(prev => [newPlan, ...prev])
+
+      await fetchWorkoutPlans()
     } catch (error) {
       console.error('Error adding workout plan:', error)
       throw error
@@ -225,9 +267,77 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const updateWorkoutPlan = async (planId: string, updates: any) => {
     try {
-      setWorkoutPlans(prev => prev.map(plan => 
-        plan.id === planId ? { ...plan, ...updates, updated_at: new Date().toISOString() } : plan
-      ))
+      // Update the workout plan
+      const { error: planError } = await supabase
+        .from('workout_plans')
+        .update({
+          name: updates.name,
+          week_number: updates.weekNumber,
+          start_date: updates.startDate
+        })
+        .eq('id', planId)
+
+      if (planError) throw planError
+
+      // If days are updated, we need to handle the complex update
+      if (updates.days) {
+        // Delete existing days and recreate (simpler approach)
+        const { error: deleteDaysError } = await supabase
+          .from('workout_days')
+          .delete()
+          .eq('workout_plan_id', planId)
+
+        if (deleteDaysError) throw deleteDaysError
+
+        // Recreate days
+        for (const [dayIndex, day] of updates.days.entries()) {
+          const { data: workoutDay, error: dayError } = await supabase
+            .from('workout_days')
+            .insert({
+              workout_plan_id: planId,
+              day_name: day.day,
+              day_order: dayIndex + 1,
+              is_rest_day: day.isRestDay
+            })
+            .select()
+            .single()
+
+          if (dayError) throw dayError
+
+          if (!day.isRestDay && day.exercises) {
+            for (const [exerciseIndex, exercise] of day.exercises.entries()) {
+              const { data: exerciseData, error: exerciseError } = await supabase
+                .from('exercises')
+                .insert({
+                  workout_day_id: workoutDay.id,
+                  name: exercise.name,
+                  exercise_order: exerciseIndex + 1
+                })
+                .select()
+                .single()
+
+              if (exerciseError) throw exerciseError
+
+              const sets = exercise.sets.map((set: any, setIndex: number) => ({
+                exercise_id: exerciseData.id,
+                set_number: setIndex + 1,
+                reps: set.reps,
+                reality: set.reality,
+                weight: set.weight,
+                volume: set.volume
+              }))
+
+              const { error: setsError } = await supabase
+                .from('exercise_sets')
+                .insert(sets)
+
+              if (setsError) throw setsError
+            }
+          }
+        }
+      }
+
+      await fetchWorkoutPlans()
     } catch (error) {
       console.error('Error updating workout plan:', error)
       throw error
@@ -236,7 +346,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const deleteWorkoutPlan = async (planId: string) => {
     try {
-      setWorkoutPlans(prev => prev.filter(plan => plan.id !== planId))
+      const { error } = await supabase
+        .from('workout_plans')
+        .delete()
+        .eq('id', planId)
+
+      if (error) throw error
+      await fetchWorkoutPlans()
     } catch (error) {
       console.error('Error deleting workout plan:', error)
       throw error
@@ -325,18 +441,50 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const addMealPlan = async (planData: any) => {
     try {
-      const newPlan = {
-        id: `meal-${Date.now()}`,
-        name: planData.name,
-        client_id: planData.clientId,
-        total_calories: planData.totalCalories,
-        notes: planData.notes,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        meals: planData.meals
+      const { data: plan, error: planError } = await supabase
+        .from('meal_plans')
+        .insert({
+          name: planData.name,
+          client_id: planData.clientId,
+          total_calories: planData.totalCalories,
+          notes: planData.notes
+        })
+        .select()
+        .single()
+
+      if (planError) throw planError
+
+      for (const [mealIndex, meal] of planData.meals.entries()) {
+        const { data: mealData, error: mealError } = await supabase
+          .from('meals')
+          .insert({
+            meal_plan_id: plan.id,
+            name: meal.name,
+            total_calories: meal.totalCalories,
+            meal_order: mealIndex + 1
+          })
+          .select()
+          .single()
+
+        if (mealError) throw mealError
+
+        const foods = meal.foods.map((food: any, foodIndex: number) => ({
+          meal_id: mealData.id,
+          name: food.name,
+          macro_type: food.macroType,
+          calories: food.calories,
+          notes: food.notes,
+          food_order: foodIndex + 1
+        }))
+
+        const { error: foodsError } = await supabase
+          .from('meal_foods')
+          .insert(foods)
+
+        if (foodsError) throw foodsError
       }
-      
-      setMealPlans(prev => [newPlan, ...prev])
+
+      await fetchMealPlans()
     } catch (error) {
       console.error('Error adding meal plan:', error)
       throw error
@@ -345,9 +493,58 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const updateMealPlan = async (planId: string, updates: any) => {
     try {
-      setMealPlans(prev => prev.map(plan => 
-        plan.id === planId ? { ...plan, ...updates, updated_at: new Date().toISOString() } : plan
-      ))
+      const { error: planError } = await supabase
+        .from('meal_plans')
+        .update({
+          name: updates.name,
+          total_calories: updates.totalCalories,
+          notes: updates.notes
+        })
+        .eq('id', planId)
+
+      if (planError) throw planError
+
+      if (updates.meals) {
+        // Delete existing meals and recreate
+        const { error: deleteMealsError } = await supabase
+          .from('meals')
+          .delete()
+          .eq('meal_plan_id', planId)
+
+        if (deleteMealsError) throw deleteMealsError
+
+        for (const [mealIndex, meal] of updates.meals.entries()) {
+          const { data: mealData, error: mealError } = await supabase
+            .from('meals')
+            .insert({
+              meal_plan_id: planId,
+              name: meal.name,
+              total_calories: meal.totalCalories,
+              meal_order: mealIndex + 1
+            })
+            .select()
+            .single()
+
+          if (mealError) throw mealError
+
+          const foods = meal.foods.map((food: any, foodIndex: number) => ({
+            meal_id: mealData.id,
+            name: food.name,
+            macro_type: food.macroType,
+            calories: food.calories,
+            notes: food.notes,
+            food_order: foodIndex + 1
+          }))
+
+          const { error: foodsError } = await supabase
+            .from('meal_foods')
+            .insert(foods)
+
+          if (foodsError) throw foodsError
+        }
+      }
+
+      await fetchMealPlans()
     } catch (error) {
       console.error('Error updating meal plan:', error)
       throw error
@@ -356,7 +553,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const deleteMealPlan = async (planId: string) => {
     try {
-      setMealPlans(prev => prev.filter(plan => plan.id !== planId))
+      const { error } = await supabase
+        .from('meal_plans')
+        .delete()
+        .eq('id', planId)
+
+      if (error) throw error
+      await fetchMealPlans()
     } catch (error) {
       console.error('Error deleting meal plan:', error)
       throw error
@@ -383,12 +586,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const addWeightRecord = async (record: Omit<WeightRecord, 'id' | 'created_at'>) => {
     try {
-      const newRecord = {
-        id: `weight-${Date.now()}`,
-        ...record,
-        created_at: new Date().toISOString()
-      }
-      setWeightRecords(prev => [newRecord, ...prev])
+      const { error } = await supabase
+        .from('weight_records')
+        .insert(record)
+
+      if (error) throw error
+      await fetchWeightRecords()
     } catch (error) {
       console.error('Error adding weight record:', error)
       throw error
@@ -415,13 +618,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const addTestimonial = async (testimonial: Omit<Testimonial, 'id' | 'created_at' | 'updated_at'>) => {
     try {
-      const newTestimonial = {
-        id: `testimonial-${Date.now()}`,
-        ...testimonial,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      }
-      setTestimonials(prev => [newTestimonial, ...prev])
+      const { error } = await supabase
+        .from('testimonials')
+        .insert(testimonial)
+
+      if (error) throw error
+      await fetchTestimonials()
     } catch (error) {
       console.error('Error adding testimonial:', error)
       throw error
@@ -430,9 +632,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const updateTestimonial = async (id: string, updates: Partial<Testimonial>) => {
     try {
-      setTestimonials(prev => prev.map(t => 
-        t.id === id ? { ...t, ...updates, updated_at: new Date().toISOString() } : t
-      ))
+      const { error } = await supabase
+        .from('testimonials')
+        .update(updates)
+        .eq('id', id)
+
+      if (error) throw error
+      await fetchTestimonials()
     } catch (error) {
       console.error('Error updating testimonial:', error)
       throw error
@@ -441,7 +647,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const deleteTestimonial = async (id: string) => {
     try {
-      setTestimonials(prev => prev.filter(t => t.id !== id))
+      const { error } = await supabase
+        .from('testimonials')
+        .delete()
+        .eq('id', id)
+
+      if (error) throw error
+      await fetchTestimonials()
     } catch (error) {
       console.error('Error deleting testimonial:', error)
       throw error
@@ -468,13 +680,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const addVideo = async (video: Omit<Video, 'id' | 'created_at' | 'updated_at'>) => {
     try {
-      const newVideo = {
-        id: `video-${Date.now()}`,
-        ...video,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      }
-      setVideos(prev => [newVideo, ...prev])
+      const { error } = await supabase
+        .from('videos')
+        .insert(video)
+
+      if (error) throw error
+      await fetchVideos()
     } catch (error) {
       console.error('Error adding video:', error)
       throw error
@@ -483,9 +694,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const updateVideo = async (id: string, updates: Partial<Video>) => {
     try {
-      setVideos(prev => prev.map(v => 
-        v.id === id ? { ...v, ...updates, updated_at: new Date().toISOString() } : v
-      ))
+      const { error } = await supabase
+        .from('videos')
+        .update(updates)
+        .eq('id', id)
+
+      if (error) throw error
+      await fetchVideos()
     } catch (error) {
       console.error('Error updating video:', error)
       throw error
@@ -494,7 +709,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const deleteVideo = async (id: string) => {
     try {
-      setVideos(prev => prev.filter(v => v.id !== id))
+      const { error } = await supabase
+        .from('videos')
+        .delete()
+        .eq('id', id)
+
+      if (error) throw error
+      await fetchVideos()
     } catch (error) {
       console.error('Error deleting video:', error)
       throw error
@@ -523,7 +744,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const updateContactInfo = async (info: Omit<ContactInfo, 'id' | 'updated_at'>) => {
     try {
-      setContactInfo({ ...info, id: contactInfo?.id || '', updated_at: new Date().toISOString() })
+      const { error } = await supabase
+        .from('contact_info')
+        .upsert(info)
+
+      if (error) throw error
+      await fetchContactInfo()
     } catch (error) {
       console.error('Error updating contact info:', error)
       throw error
@@ -552,7 +778,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const updateHomeContent = async (content: Omit<HomeContent, 'id' | 'updated_at'>) => {
     try {
-      setHomeContent({ ...content, id: homeContent?.id || '', updated_at: new Date().toISOString() })
+      const { error } = await supabase
+        .from('home_content')
+        .upsert(content)
+
+      if (error) throw error
+      await fetchHomeContent()
     } catch (error) {
       console.error('Error updating home content:', error)
       throw error
@@ -579,20 +810,21 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const addUser = async (userData: any) => {
     try {
-      const newUser = {
-        id: `user-${Date.now()}`,
-        username: userData.username,
-        email: userData.email,
-        password_hash: userData.password,
-        full_name: userData.fullName,
-        phone: userData.phone,
-        role: userData.role,
-        avatar: userData.avatar,
-        start_date: new Date().toISOString().split('T')[0],
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      }
-      setUsers(prev => [newUser, ...prev])
+      const { error } = await supabase
+        .from('users')
+        .insert({
+          username: userData.username,
+          email: userData.email,
+          password_hash: userData.password,
+          full_name: userData.fullName,
+          phone: userData.phone,
+          role: userData.role,
+          avatar: userData.avatar,
+          start_date: new Date().toISOString().split('T')[0]
+        })
+
+      if (error) throw error
+      await fetchUsers()
     } catch (error) {
       console.error('Error adding user:', error)
       throw error
@@ -601,19 +833,26 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const updateUser = async (id: string, updates: any) => {
     try {
-      setUsers(prev => prev.map(user => 
-        user.id === id ? { 
-          ...user, 
-          username: updates.username,
-          email: updates.email,
-          full_name: updates.fullName,
-          phone: updates.phone,
-          role: updates.role,
-          avatar: updates.avatar,
-          password_hash: updates.password || user.password_hash,
-          updated_at: new Date().toISOString()
-        } : user
-      ))
+      const updateData: any = {
+        username: updates.username,
+        email: updates.email,
+        full_name: updates.fullName,
+        phone: updates.phone,
+        role: updates.role,
+        avatar: updates.avatar
+      }
+
+      if (updates.password) {
+        updateData.password_hash = updates.password
+      }
+
+      const { error } = await supabase
+        .from('users')
+        .update(updateData)
+        .eq('id', id)
+
+      if (error) throw error
+      await fetchUsers()
     } catch (error) {
       console.error('Error updating user:', error)
       throw error
@@ -622,7 +861,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const deleteUser = async (id: string) => {
     try {
-      setUsers(prev => prev.filter(user => user.id !== id))
+      const { error } = await supabase
+        .from('users')
+        .delete()
+        .eq('id', id)
+
+      if (error) throw error
+      await fetchUsers()
     } catch (error) {
       console.error('Error deleting user:', error)
       throw error

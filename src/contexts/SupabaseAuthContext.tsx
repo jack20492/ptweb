@@ -29,7 +29,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Check for existing session
     checkUser()
   }, [])
 
@@ -37,13 +36,26 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       setLoading(true)
       
-      // For demo purposes, check if there's a stored user
-      const storedUser = localStorage.getItem('demo_user')
+      // Check if there's a stored user session
+      const storedUser = localStorage.getItem('current_user')
       if (storedUser) {
-        setUser(JSON.parse(storedUser))
+        const userData = JSON.parse(storedUser)
+        // Verify user still exists in database
+        const { data, error } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', userData.id)
+          .single()
+        
+        if (!error && data) {
+          setUser(data)
+        } else {
+          localStorage.removeItem('current_user')
+        }
       }
     } catch (error) {
       console.error('Error checking user:', error)
+      localStorage.removeItem('current_user')
     } finally {
       setLoading(false)
     }
@@ -53,27 +65,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       setLoading(true)
       
-      // Simple demo login - check against our known admin user
-      if ((username === 'admin' || username === 'admin@phinpt.com') && password === 'admin123') {
-        const adminUser: User = {
-          id: '00000000-0000-0000-0000-000000000001',
-          username: 'admin',
-          email: 'admin@phinpt.com',
-          full_name: 'Admin User',
-          phone: '0123456789',
-          role: 'admin',
-          avatar: null,
-          start_date: new Date().toISOString().split('T')[0],
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        }
-        
-        setUser(adminUser)
-        localStorage.setItem('demo_user', JSON.stringify(adminUser))
-        return true
-      }
-      
-      // Try to find user in database
+      // Try to find user in database by username or email
       const { data: userData, error } = await supabase
         .from('users')
         .select('*')
@@ -81,13 +73,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         .single()
 
       if (error || !userData) {
+        console.error('User not found:', error)
         return false
       }
 
       // Simple password check (in production, use proper hashing)
       if (userData.password_hash === password) {
         setUser(userData)
-        localStorage.setItem('demo_user', JSON.stringify(userData))
+        localStorage.setItem('current_user', JSON.stringify(userData))
         return true
       }
 
@@ -102,7 +95,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const logout = async () => {
     setUser(null)
-    localStorage.removeItem('demo_user')
+    localStorage.removeItem('current_user')
   }
 
   const isAdmin = user?.role === 'admin'
