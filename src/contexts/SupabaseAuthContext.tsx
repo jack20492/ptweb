@@ -29,52 +29,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        fetchUserProfile(session.user.id)
-      } else {
-        setLoading(false)
-      }
-    })
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (session?.user) {
-        await fetchUserProfile(session.user.id)
-      } else {
-        setUser(null)
-        setLoading(false)
-      }
-    })
-
-    return () => subscription.unsubscribe()
+    // Check for existing session
+    checkUser()
   }, [])
 
-  const fetchUserProfile = async (userId: string) => {
+  const checkUser = async () => {
     try {
-      const { data, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', userId)
-        .maybeSingle()
-
-      if (error) {
-        console.error('Error fetching user profile:', error)
-        // If user doesn't exist in users table, sign out
-        await supabase.auth.signOut()
-        setUser(null)
-      } else if (data) {
-        setUser(data)
-      } else {
-        // User not found in users table
-        await supabase.auth.signOut()
-        setUser(null)
+      setLoading(true)
+      
+      // For demo purposes, check if there's a stored user
+      const storedUser = localStorage.getItem('demo_user')
+      if (storedUser) {
+        setUser(JSON.parse(storedUser))
       }
     } catch (error) {
-      console.error('Error fetching user profile:', error)
-      await supabase.auth.signOut()
-      setUser(null)
+      console.error('Error checking user:', error)
     } finally {
       setLoading(false)
     }
@@ -82,39 +51,58 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const login = async (username: string, password: string): Promise<boolean> => {
     try {
-      let email = username
+      setLoading(true)
       
-      // If username doesn't contain @, try to find the email from users table
-      if (!username.includes('@')) {
-        const { data: userData, error: userError } = await supabase
-          .from('users')
-          .select('email')
-          .eq('username', username)
-          .maybeSingle()
-
-        if (userError || !userData?.email) {
-          return false
+      // Simple demo login - check against our known admin user
+      if ((username === 'admin' || username === 'admin@phinpt.com') && password === 'admin123') {
+        const adminUser: User = {
+          id: '00000000-0000-0000-0000-000000000001',
+          username: 'admin',
+          email: 'admin@phinpt.com',
+          full_name: 'Admin User',
+          phone: '0123456789',
+          role: 'admin',
+          avatar: null,
+          start_date: new Date().toISOString().split('T')[0],
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
         }
         
-        email = userData.email
+        setUser(adminUser)
+        localStorage.setItem('demo_user', JSON.stringify(adminUser))
+        return true
+      }
+      
+      // Try to find user in database
+      const { data: userData, error } = await supabase
+        .from('users')
+        .select('*')
+        .or(`username.eq.${username},email.eq.${username}`)
+        .single()
+
+      if (error || !userData) {
+        return false
       }
 
-      // Sign in with email and password
-      const { error } = await supabase.auth.signInWithPassword({
-        email: email,
-        password: password
-      })
+      // Simple password check (in production, use proper hashing)
+      if (userData.password_hash === password) {
+        setUser(userData)
+        localStorage.setItem('demo_user', JSON.stringify(userData))
+        return true
+      }
 
-      return !error
+      return false
     } catch (error) {
       console.error('Login error:', error)
       return false
+    } finally {
+      setLoading(false)
     }
   }
 
   const logout = async () => {
-    await supabase.auth.signOut()
     setUser(null)
+    localStorage.removeItem('demo_user')
   }
 
   const isAdmin = user?.role === 'admin'
