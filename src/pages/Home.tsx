@@ -1,6 +1,6 @@
 import React, { useState, useRef } from "react";
-import { useData } from "../contexts/DataContext";
-import { useAuth } from "../contexts/AuthContext";
+import { useData } from "../contexts/SupabaseDataContext";
+import { useAuth } from "../contexts/SupabaseAuthContext";
 import {
   Star,
   Play,

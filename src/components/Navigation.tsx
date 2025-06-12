@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../contexts/SupabaseAuthContext';
 import { Dumbbell, LogOut, User, Home, Settings } from 'lucide-react';
 
 const Navigation: React.FC = () => {
